@@ -328,7 +328,7 @@ struct napi_struct {
 	unsigned long		state;
 	int			weight;
 	int			(*poll)(struct napi_struct *, int);
-#ifdef CONFIG_NETPOLL
+#ifdef CONFIG_NETPOLL /* 定义在drivers/net/Kconfig  */
 	spinlock_t		poll_lock;
 	int			poll_owner;
 #endif
@@ -579,13 +579,15 @@ struct netdev_queue {
  * void (*ndo_poll_controller)(struct net_device *dev);
  */
 #define HAVE_NET_DEVICE_OPS
+
+/* 抽象出来的net_device 操作接口 */
 struct net_device_ops {
 	int			(*ndo_init)(struct net_device *dev);
 	void			(*ndo_uninit)(struct net_device *dev);
 	int			(*ndo_open)(struct net_device *dev);
 	int			(*ndo_stop)(struct net_device *dev);
 	netdev_tx_t		(*ndo_start_xmit) (struct sk_buff *skb,
-						   struct net_device *dev);
+						   struct net_device *dev);	/* 发送函数 */
 	u16			(*ndo_select_queue)(struct net_device *dev,
 						    struct sk_buff *skb);
 #define HAVE_CHANGE_RX_FLAGS
@@ -626,6 +628,7 @@ struct net_device_ops {
 #define HAVE_NETDEV_POLL
 	void                    (*ndo_poll_controller)(struct net_device *dev);
 #endif
+/* fiber channel over ethernet */
 #if defined(CONFIG_FCOE) || defined(CONFIG_FCOE_MODULE)
 	int			(*ndo_fcoe_enable)(struct net_device *dev);
 	int			(*ndo_fcoe_disable)(struct net_device *dev);
@@ -647,6 +650,25 @@ struct net_device_ops {
  *	FIXME: cleanup struct net_device such that network protocol info
  *	moves out.
  */
+ 
+/* 重点数据结构  
+数据结构内容分为以下几类:
+网络设备字段:
+name, next, owner, ifindex, iflink, state, trans_start, last_rx,
+priv, qdisc, refcnt, xmit_lock, xmit_lock_owner, queue_lock
+
+硬件字段:
+rmem_end, rmem_start, mem_end, mem_start , base_addr, irq, dma,
+if_port
+物理层字段:
+hard_header_length, mtu, tx_queue_len, type, addr_len, dev_addr,
+broadcast, dev_mc_list, mc_count, watchdog_timeo, watchdog_timer
+
+
+
+
+*/
+
 
 struct net_device
 {
@@ -737,6 +759,7 @@ struct net_device
 				 NETIF_F_FRAGLIST)
 
 	/* Interface index. Unique device identifier	*/
+	/* ##这两个字段的差别 */
 	int			ifindex;
 	int			iflink;
 
@@ -1164,9 +1187,12 @@ static inline int skb_gro_header_hard(struct sk_buff *skb, unsigned int hlen)
 static inline void *skb_gro_header_slow(struct sk_buff *skb, unsigned int hlen,
 					unsigned int offset)
 {
+	if (!pskb_may_pull(skb, hlen))
+		return NULL;
+
 	NAPI_GRO_CB(skb)->frag0 = NULL;
 	NAPI_GRO_CB(skb)->frag0_len = 0;
-	return pskb_may_pull(skb, hlen) ? skb->data + offset : NULL;
+	return skb->data + offset;
 }
 
 static inline void *skb_gro_mac_header(struct sk_buff *skb)
@@ -1215,8 +1241,13 @@ static inline int unregister_gifconf(unsigned int family)
 struct softnet_data
 {
 	struct Qdisc		*output_queue;
-	struct sk_buff_head	input_pkt_queue;
-	struct list_head	poll_list;
+	struct sk_buff_head	input_pkt_queue; /* 接收的报文队列 */
+	
+	 // napi->poll_list结构挂入这个list，包括NAPI接口的driver以及非NAPI接口的driver都可以统一加入到这个poll_list上
+ 	// 对于NAPI接口，每个driver的napi结构可以通过napi_schedule加入到这个poll_list上
+ 	// 对于非NAPI接口，把softnet_data->backlog通过napi_schedule加入到这个poll_list上
+ 	// 这样做的目的是，无论NAPI还是non NAPI都统一到net_rx_action函数的一致处理流程上来
+	struct list_head	poll_list;  /*  */
 	struct sk_buff		*completion_queue;
 
 	struct napi_struct	backlog;
@@ -1559,6 +1590,8 @@ extern void __netdev_watchdog_up(struct net_device *dev);
 extern void netif_carrier_on(struct net_device *dev);
 
 extern void netif_carrier_off(struct net_device *dev);
+
+extern void netif_notify_peers(struct net_device *dev);
 
 /**
  *	netif_dormant_on - mark device as dormant.
@@ -2013,6 +2046,10 @@ static inline u32 dev_ethtool_get_flags(struct net_device *dev)
 		return 0;
 	return dev->ethtool_ops->get_flags(dev);
 }
+
+#define MODULE_ALIAS_NETDEV(device) \
+	MODULE_ALIAS("netdev-" device)
+
 #endif /* __KERNEL__ */
 
 #endif	/* _LINUX_NETDEVICE_H */

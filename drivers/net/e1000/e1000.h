@@ -287,8 +287,8 @@ struct e1000_adapter {
 	struct e1000_rx_ring *rx_ring;      /* One per active queue */
 	struct napi_struct napi;
 
-	int num_tx_queues;
-	int num_rx_queues;
+	int num_tx_queues;  /* 发送队列数量 默认为1  */
+	int num_rx_queues; /* 接收队列数量 默认为1  */
 
 	u64 hw_csum_err;
 	u64 hw_csum_good;
@@ -326,6 +326,8 @@ struct e1000_adapter {
 	/* for ioport free */
 	int bars;
 	int need_ioport;
+
+	bool discarding;
 };
 
 enum e1000_state_t {

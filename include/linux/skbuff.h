@@ -331,8 +331,8 @@ struct sk_buff {
 	 */
 	char			cb[48];
 
-	unsigned int		len,
-				data_len;
+	unsigned int		len,   /* Length of actual data  */
+						data_len;
 	__u16			mac_len,
 				hdr_len;
 	union {
@@ -349,7 +349,7 @@ struct sk_buff {
 				ip_summed:2,
 				nohdr:1,
 				nfctinfo:3;
-	__u8			pkt_type:3,
+	__u8			pkt_type:3, /*  从报文上送对象分类 PACKET_HOST */
 				fclone:2,
 				ipvs_property:1,
 				peeked:1,
@@ -639,6 +639,16 @@ static inline int skb_cloned(const struct sk_buff *skb)
 {
 	return skb->cloned &&
 	       (atomic_read(&skb_shinfo(skb)->dataref) & SKB_DATAREF_MASK) != 1;
+}
+
+static inline int skb_unclone(struct sk_buff *skb, gfp_t pri)
+{
+	might_sleep_if(pri & __GFP_WAIT);
+
+	if (skb_cloned(skb))
+		return pskb_expand_head(skb, 0, 0, pri);
+
+	return 0;
 }
 
 /**
@@ -1114,6 +1124,10 @@ static inline void skb_set_tail_pointer(struct sk_buff *skb, const int offset)
 #endif /* NET_SKBUFF_DATA_USES_OFFSET */
 
 /*
+参考 http://www.skbuff.net/skbbasic.html
+
+*/
+/*
  *	Add data to an sk_buff
  */
 extern unsigned char *skb_put(struct sk_buff *skb, unsigned int len);
@@ -1203,6 +1217,8 @@ static inline void skb_reserve(struct sk_buff *skb, int len)
 	skb->tail += len;
 }
 
+//如果使用了offset来表示偏移的话，就是说是一个相对偏移的情况
+
 #ifdef NET_SKBUFF_DATA_USES_OFFSET
 static inline unsigned char *skb_transport_header(const struct sk_buff *skb)
 {
@@ -1225,7 +1241,7 @@ static inline unsigned char *skb_network_header(const struct sk_buff *skb)
 {
 	return skb->head + skb->network_header;
 }
-
+/* 两种不同的模式  */
 static inline void skb_reset_network_header(struct sk_buff *skb)
 {
 	skb->network_header = skb->data - skb->head;
@@ -1259,7 +1275,7 @@ static inline void skb_set_mac_header(struct sk_buff *skb, const int offset)
 }
 
 #else /* NET_SKBUFF_DATA_USES_OFFSET */
-
+//不使用位移，使用指针
 static inline unsigned char *skb_transport_header(const struct sk_buff *skb)
 {
 	return skb->transport_header;
@@ -1311,6 +1327,16 @@ static inline void skb_set_mac_header(struct sk_buff *skb, const int offset)
 	skb->mac_header = skb->data + offset;
 }
 #endif /* NET_SKBUFF_DATA_USES_OFFSET */
+
+static inline void skb_mac_header_rebuild(struct sk_buff *skb)
+{
+	if (skb_mac_header_was_set(skb)) {
+		const unsigned char *old_mac = skb_mac_header(skb);
+
+		skb_set_mac_header(skb, -skb->mac_len);
+		memmove(skb_mac_header(skb), old_mac, skb->mac_len);
+	}
+}
 
 static inline int skb_transport_offset(const struct sk_buff *skb)
 {

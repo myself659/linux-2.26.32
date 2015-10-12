@@ -345,7 +345,8 @@ static void kobil_close(struct usb_serial_port *port)
 
 	/* FIXME: Add rts/dtr methods */
 	if (port->write_urb) {
-		usb_kill_urb(port->write_urb);
+		usb_poison_urb(port->write_urb);
+		kfree(port->write_urb->transfer_buffer);
 		usb_free_urb(port->write_urb);
 		port->write_urb = NULL;
 	}
@@ -371,7 +372,7 @@ static void kobil_read_int_callback(struct urb *urb)
 	}
 
 	tty = tty_port_tty_get(&port->port);
-	if (urb->actual_length) {
+	if (tty && urb->actual_length) {
 
 		/* BEGIN DEBUG */
 		/*
@@ -463,7 +464,7 @@ static int kobil_write(struct tty_struct *tty, struct usb_serial_port *port,
 			);
 
 			priv->cur_pos = priv->cur_pos + length;
-			result = usb_submit_urb(port->write_urb, GFP_NOIO);
+			result = usb_submit_urb(port->write_urb, GFP_ATOMIC);
 			dbg("%s - port %d Send write URB returns: %i",
 					__func__, port->number, result);
 			todo = priv->filled - priv->cur_pos;
@@ -487,7 +488,7 @@ static int kobil_write(struct tty_struct *tty, struct usb_serial_port *port,
 			port->interrupt_in_urb->dev = port->serial->dev;
 
 			result = usb_submit_urb(port->interrupt_in_urb,
-								GFP_NOIO);
+								GFP_ATOMIC);
 			dbg("%s - port %d Send read URB returns: %i",
 					__func__, port->number, result);
 		}

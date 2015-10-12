@@ -376,6 +376,8 @@ struct device_dma_parameters {
 	unsigned long segment_boundary_mask;
 };
 
+
+/* */
 struct device {
 	struct device		*parent;
 

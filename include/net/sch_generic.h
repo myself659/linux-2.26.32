@@ -37,6 +37,7 @@ struct qdisc_size_table {
 	u16			data[];
 };
 
+/* qos */
 struct Qdisc
 {
 	int 			(*enqueue)(struct sk_buff *skb, struct Qdisc *dev);
