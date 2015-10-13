@@ -168,8 +168,12 @@
 #define PTYPE_HASH_MASK	(PTYPE_HASH_SIZE - 1)
 
 static DEFINE_SPINLOCK(ptype_lock);
-static struct list_head ptype_base[PTYPE_HASH_SIZE] __read_mostly;
-static struct list_head ptype_all __read_mostly;	/* Taps */
+//static struct list_head ptype_base[PTYPE_HASH_SIZE] __read_mostly;
+static struct list_head ptype_base[PTYPE_HASH_SIZE];
+
+//static struct list_head ptype_all __read_mostly;	/* Taps */
+static struct list_head ptype_all;
+
 
 /*
  * The @dev_base_head list is protected by @dev_base_lock and the rtnl
@@ -1883,6 +1887,10 @@ static inline int __dev_xmit_skb(struct sk_buff *skb, struct Qdisc *q,
  *      the BH enable code must have IRQs enabled so that it will not deadlock.
  *          --BLG
  */
+ 
+/*
+网络设备发送报文接口，屏蔽不同的设备细节 
+*/
 int dev_queue_xmit(struct sk_buff *skb)
 {
 	struct net_device *dev = skb->dev;
@@ -2013,6 +2021,9 @@ DEFINE_PER_CPU(struct netif_rx_stats, netdev_rx_stat) = { 0, };
  *
  */
 
+/*
+报文上送协议栈
+*/
 int netif_rx(struct sk_buff *skb)
 {
 	struct softnet_data *queue;
@@ -2057,10 +2068,13 @@ int netif_rx_ni(struct sk_buff *skb)
 {
 	int err;
 
+	/* 关抢占 */
 	preempt_disable();
 	err = netif_rx(skb);
+	/* 有未处理的的软中断,进行软中断处理  */
 	if (local_softirq_pending())
 		do_softirq();
+	/* 开抢占 */
 	preempt_enable();
 
 	return err;
@@ -2128,6 +2142,7 @@ static inline int deliver_skb(struct sk_buff *skb,
 			      struct net_device *orig_dev)
 {
 	atomic_inc(&skb->users);
+	/* ip_rcv and so on  */
 	return pt_prev->func(skb, skb->dev, pt_prev, orig_dev);
 }
 
@@ -2350,7 +2365,7 @@ int netif_receive_skb(struct sk_buff *skb)
 		goto ncls;
 	}
 #endif
-
+	/* ptype_all  遍历链表  */
 	list_for_each_entry_rcu(ptype, &ptype_all, list) {
 		if (ptype->dev == null_or_orig || ptype->dev == skb->dev ||
 		    ptype->dev == orig_dev) {
@@ -2762,11 +2777,13 @@ void __napi_schedule(struct napi_struct *n)
 
 	local_irq_save(flags);
 	list_add_tail(&n->poll_list, &__get_cpu_var(softnet_data).poll_list);
+	/* 开启接收软中断 */
 	__raise_softirq_irqoff(NET_RX_SOFTIRQ);
 	local_irq_restore(flags);
 }
 EXPORT_SYMBOL(__napi_schedule);
 
+/*  处理完成从每cpu变量中删除napi  */
 void __napi_complete(struct napi_struct *n)
 {
 	BUG_ON(!test_bit(NAPI_STATE_SCHED, &n->state));
@@ -2836,7 +2853,9 @@ EXPORT_SYMBOL(netif_napi_del);
 
 static void net_rx_action(struct softirq_action *h)
 {
+	/* 获取poll list */
 	struct list_head *list = &__get_cpu_var(softnet_data).poll_list;
+	/* 处理时间不能能超过两个jiffies */
 	unsigned long time_limit = jiffies + 2;
 	int budget = netdev_budget;
 	void *have;
@@ -2875,7 +2894,8 @@ static void net_rx_action(struct softirq_action *h)
 		 */
 		work = 0;
 		if (test_bit(NAPI_STATE_SCHED, &n->state)) {
-			work = n->poll(n, weight);
+			/* process_backlog */
+			work = n->poll(n, weight); 
 			trace_napi_poll(n);
 		}
 
@@ -5685,7 +5705,7 @@ static int __init net_dev_init(void)
 		queue->completion_queue = NULL;
 		INIT_LIST_HEAD(&queue->poll_list);
 
-		queue->backlog.poll = process_backlog;  /* poll事件处理  */
+		queue->backlog.poll = process_backlog;  /* poll事件处理 在软中断处理  */
 		queue->backlog.weight = weight_p; 	/* 通过proc/sys/net/core/dev_weight 来调整 */
 		queue->backlog.gro_list = NULL;
 		queue->backlog.gro_count = 0;

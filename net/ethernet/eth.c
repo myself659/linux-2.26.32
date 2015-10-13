@@ -155,6 +155,11 @@ EXPORT_SYMBOL(eth_rebuild_header);
  * assume 802.3 if the type field is short enough to be a length.
  * This is normal practice and works for any 'now in use' protocol.
  */
+ /*
+识别LLC 协议类型和三层protocol 
+识别报文类型 单播 组播  广播 
+检查报文是否上送本机
+*/
 __be16 eth_type_trans(struct sk_buff *skb, struct net_device *dev)
 {
 	struct ethhdr *eth;
