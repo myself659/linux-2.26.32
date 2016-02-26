@@ -380,6 +380,7 @@ static void tcp_init_buffer_space(struct sock *sk)
 }
 
 /* 5. Recalculate window clamp after socket hit its memory bounds. */
+/* 超过内存门限重新计算滑动窗口 */
 static void tcp_clamp_window(struct sock *sk)
 {
 	struct tcp_sock *tp = tcp_sk(sk);
@@ -654,6 +655,7 @@ static void tcp_rtt_estimator(struct sock *sk, const __u32 mrtt)
 			if (tp->mdev_max > tp->rttvar)
 				tp->rttvar = tp->mdev_max;
 		}
+		/* */
 		if (after(tp->snd_una, tp->rtt_seq)) {
 			if (tp->mdev_max < tp->rttvar)
 				tp->rttvar -= (tp->rttvar - tp->mdev_max) >> 2;
@@ -661,6 +663,7 @@ static void tcp_rtt_estimator(struct sock *sk, const __u32 mrtt)
 			tp->mdev_max = tcp_rto_min(sk);
 		}
 	} else {
+		/* 第一次进来的情况 */
 		/* no previous measure. */
 		tp->srtt = m << 3;	/* take the measured time to be rtt */
 		tp->mdev = m << 1;	/* make sure rto = 3*rtt */
@@ -2425,12 +2428,14 @@ static int tcp_time_to_recover(struct sock *sk)
 		return 1;
 
 	/* Not-A-Trick#2 : Classic rule... */
+	/* 如果sack最大序号大于重定向长度，那么说明重定序列中头部数据一定丢失，需要进入recover状态  */
 	if (tcp_dupack_heurestics(tp) > tp->reordering)
 		return 1;
 
 	/* Trick#3 : when we use RFC2988 timer restart, fast
 	 * retransmit can be triggered by timeout of queue head.
 	 */
+	 /* 如果数据包超时，因为每次重传定时器都会被重置，需要进入recover状态 */
 	if (tcp_is_fack(tp) && tcp_head_timedout(sk))
 		return 1;
 
@@ -2676,7 +2681,7 @@ static inline int tcp_may_undo(struct tcp_sock *tp)
 static int tcp_try_undo_recovery(struct sock *sk)
 {
 	struct tcp_sock *tp = tcp_sk(sk);
-
+	/* 是否需要撤消 */
 	if (tcp_may_undo(tp)) {
 		int mib_idx;
 
@@ -2684,7 +2689,7 @@ static int tcp_try_undo_recovery(struct sock *sk)
 		 * or our original transmission succeeded.
 		 */
 		DBGUNDO(sk, inet_csk(sk)->icsk_ca_state == TCP_CA_Loss ? "loss" : "retrans");
-		tcp_undo_cwr(sk, 1);
+		tcp_undo_cwr(sk, 1);	/* 撤消设置 */
 		if (inet_csk(sk)->icsk_ca_state == TCP_CA_Loss)
 			mib_idx = LINUX_MIB_TCPLOSSUNDO;
 		else
@@ -2805,14 +2810,16 @@ static void tcp_try_to_open(struct sock *sk, int flag)
 
 	if (!tp->frto_counter && tp->retrans_out == 0)
 		tp->retrans_stamp = 0;
-
+	/* 如果接收到ECE,则进入cwr状态 */
 	if (flag & FLAG_ECE)
 		tcp_enter_cwr(sk, 1);
 
 	if (inet_csk(sk)->icsk_ca_state != TCP_CA_CWR) {
 		tcp_try_keep_open(sk);
+		/* 修改拥塞窗口 */
 		tcp_moderate_cwnd(tp);
 	} else {
+		/* 减少拥塞窗口 */
 		tcp_cwnd_down(sk, flag);
 	}
 }
@@ -3006,6 +3013,7 @@ static void tcp_fastretrans_alert(struct sock *sk, int pkts_acked, int flag)
 			return;
 		/* Loss is undone; fall through to processing in Open state. */
 	default:
+		/* 如果sack关闭，就模块sack */
 		if (tcp_is_reno(tp)) {
 			if (flag & FLAG_SND_UNA_ADVANCED)
 				tcp_reset_reno_sack(tp);
@@ -3014,9 +3022,10 @@ static void tcp_fastretrans_alert(struct sock *sk, int pkts_acked, int flag)
 		}
 
 		if (icsk->icsk_ca_state == TCP_CA_Disorder)
-			tcp_try_undo_dsack(sk);
+			tcp_try_undo_dsack(sk); /* 从DSACK恢复 */
 
 		if (!tcp_time_to_recover(sk)) {
+			/* 如果不需要进入recover状态，则尝试着检查是否需要进入cwr或者disorder状态  */
 			tcp_try_to_open(sk, flag);
 			return;
 		}
@@ -3093,7 +3102,7 @@ static void tcp_ack_saw_tstamp(struct sock *sk, int flag)
 	 * in window is lost... Voila.	 			--ANK (010210)
 	 */
 	struct tcp_sock *tp = tcp_sk(sk);
-
+	/* 当前时间 减去最后一个报文时间 视为rtt */
 	tcp_valid_rtt_meas(sk, tcp_time_stamp - tp->rx_opt.rcv_tsecr);
 }
 

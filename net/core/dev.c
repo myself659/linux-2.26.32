@@ -2067,7 +2067,7 @@ EXPORT_SYMBOL(netif_rx);
 int netif_rx_ni(struct sk_buff *skb)
 {
 	int err;
-
+	
 	/* 关抢占 */
 	preempt_disable();
 	err = netif_rx(skb);
@@ -2080,7 +2080,7 @@ int netif_rx_ni(struct sk_buff *skb)
 	return err;
 }
 EXPORT_SYMBOL(netif_rx_ni);
-
+/* 发送软中断 */
 static void net_tx_action(struct softirq_action *h)
 {
 	struct softnet_data *sd = &__get_cpu_var(softnet_data);
@@ -2141,6 +2141,7 @@ static inline int deliver_skb(struct sk_buff *skb,
 			      struct packet_type *pt_prev,
 			      struct net_device *orig_dev)
 {
+	
 	atomic_inc(&skb->users);
 	/* ip_rcv and so on  */
 	return pt_prev->func(skb, skb->dev, pt_prev, orig_dev);
@@ -4488,7 +4489,7 @@ static int dev_ifsioc(struct net *net, struct ifreq *ifr, unsigned int cmd)
  *	other purposes. The return value is the return from the syscall if
  *	positive or a negative errno code on error.
  */
-
+/* 设备管理 */
 int dev_ioctl(struct net *net, unsigned int cmd, void __user *arg)
 {
 	struct ifreq ifr;

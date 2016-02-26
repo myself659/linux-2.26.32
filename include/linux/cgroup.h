@@ -173,12 +173,14 @@ struct cgroup_pidlist {
 	struct rw_semaphore mutex;
 };
 
+/* 核心数据结构  */
 struct cgroup {
 	unsigned long flags;		/* "unsigned long" so bitops work */
 
 	/*
 	 * count users of this cgroup. >0 means busy, but doesn't
 	 * necessarily indicate the number of tasks in the cgroup
+	 * 引用计数
 	 */
 	atomic_t count;
 
@@ -189,18 +191,19 @@ struct cgroup {
 	struct list_head sibling;	/* my parent's children */
 	struct list_head children;	/* my children */
 
-	struct cgroup *parent;		/* my parent */
-	struct dentry *dentry;	  	/* cgroup fs entry, RCU protected */
+	struct cgroup *parent;		/* my parent  cgroup的父节点 */
+	struct dentry *dentry;	  	/* cgroup fs entry, RCU protected  cgroup所处目录 */
 
 	/* Private pointers for each registered subsystem */
 	struct cgroup_subsys_state *subsys[CGROUP_SUBSYS_COUNT];
 
-	struct cgroupfs_root *root;
-	struct cgroup *top_cgroup;
+	struct cgroupfs_root *root; /* cgoup 所属cgroupfs_root */
+	struct cgroup *top_cgroup;   /* 挂载目录下最上层的cgroup */
 
 	/*
 	 * List of cg_cgroup_links pointing at css_sets with
 	 * tasks in this cgroup. Protected by css_set_lock
+	 *  #?  
 	 */
 	struct list_head css_sets;
 
@@ -230,6 +233,11 @@ struct cgroup {
  * set for a task.
  */
 
+/*
+css_set 数据结构 
+设计上为什么要有css_set这个数据结构
+
+*/
 struct css_set {
 
 	/* Reference count */
@@ -238,12 +246,14 @@ struct css_set {
 	/*
 	 * List running through all cgroup groups in the same hash
 	 * slot. Protected by css_set_lock
+	 * 哈希指针
 	 */
 	struct hlist_node hlist;
 
 	/*
 	 * List running through all tasks using this cgroup
 	 * group. Protected by css_set_lock
+	 * 关联的task链表头
 	 */
 	struct list_head tasks;
 

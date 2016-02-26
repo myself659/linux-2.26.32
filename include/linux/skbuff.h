@@ -767,6 +767,7 @@ static inline struct sk_buff *skb_unshare(struct sk_buff *skb,
  *	The reference count is not incremented and the reference is therefore
  *	volatile. Use with caution.
  */
+ /*  获取链表头  */
 static inline struct sk_buff *skb_peek(struct sk_buff_head *list_)
 {
 	struct sk_buff *list = ((struct sk_buff *)list_)->next;
@@ -788,6 +789,7 @@ static inline struct sk_buff *skb_peek(struct sk_buff_head *list_)
  *	The reference count is not incremented and the reference is therefore
  *	volatile. Use with caution.
  */
+ /* 获取链表尾 */
 static inline struct sk_buff *skb_peek_tail(struct sk_buff_head *list_)
 {
 	struct sk_buff *list = ((struct sk_buff *)list_)->prev;
@@ -1636,6 +1638,7 @@ static inline int skb_add_data(struct sk_buff *skb,
 	return -EFAULT;
 }
 
+/* 检查是否需要合并 */
 static inline int skb_can_coalesce(struct sk_buff *skb, int i,
 				   struct page *page, int off)
 {

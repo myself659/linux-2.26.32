@@ -3381,6 +3381,7 @@ static irqreturn_t e1000_intr(int irq, void *data)
 		adapter->total_tx_packets = 0;
 		adapter->total_rx_bytes = 0;
 		adapter->total_rx_packets = 0;
+		/* 将网卡的napi结构加入每cpu变量的链表，并开启软中断  */
 		__napi_schedule(&adapter->napi);
 	} else {
 		/* this really should not happen! if it does it is basically a

@@ -1619,7 +1619,8 @@ process:
 	if (!xfrm4_policy_check(sk, XFRM_POLICY_IN, skb))
 		goto discard_and_relse;
 	nf_reset(skb);
-
+	
+	/* sk_filter 安全性检查  */
 	if (sk_filter(sk, skb))
 		goto discard_and_relse;
 
@@ -1770,6 +1771,7 @@ int tcp_v4_tw_remember_stamp(struct inet_timewait_sock *tw)
 	return 0;
 }
 
+/* inet socket 操作接口 */
 const struct inet_connection_sock_af_ops ipv4_specific = {
 	.queue_xmit	   = ip_queue_xmit,
 	.send_check	   = tcp_v4_send_check,
@@ -1841,7 +1843,7 @@ static int tcp_v4_init_sock(struct sock *sk)
 	tp->af_specific = &tcp_sock_ipv4_specific;
 #endif
 
-	sk->sk_sndbuf = sysctl_tcp_wmem[1];
+	sk->sk_sndbuf = sysctl_tcp_wmem[1]; /* 取默认值 */
 	sk->sk_rcvbuf = sysctl_tcp_rmem[1];
 
 	local_bh_disable();

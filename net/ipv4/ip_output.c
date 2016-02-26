@@ -96,7 +96,7 @@ int __ip_local_out(struct sk_buff *skb)
 	iph->tot_len = htons(skb->len);
 	ip_send_check(iph);
 	return nf_hook(PF_INET, NF_INET_LOCAL_OUT, skb, NULL, skb_dst(skb)->dev,
-		       dst_output);
+		       dst_output);  /*  一个hook点  */
 }
 
 int ip_local_out(struct sk_buff *skb)
@@ -200,7 +200,7 @@ static inline int ip_finish_output2(struct sk_buff *skb)
 		kfree_skb(skb);
 		skb = skb2;
 	}
-
+	/* 有邻居缓存信息 */
 	if (dst->hh)
 		return neigh_hh_output(dst->hh, skb);
 	else if (dst->neighbour)

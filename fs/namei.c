@@ -138,7 +138,9 @@ static int do_getname(const char __user *filename, char *page)
 		retval = -ENOENT;
 	return retval;
 }
-
+/*
+将用户态文件名拷到内核态 
+*/
 char * getname(const char __user * filename)
 {
 	char *tmp, *result;
@@ -1655,6 +1657,7 @@ out_unlock:
  * later).
  *
 */
+/* flag转换  */
 static inline int open_to_namei_flags(int flag)
 {
 	if ((flag+1) & O_ACCMODE)
@@ -1677,6 +1680,14 @@ static int open_will_write_to_fs(int flag, struct inode *inode)
  * Note that the low bits of the passed in "open_flag"
  * are not the same as in the local variable "flag". See
  * open_to_namei_flags() for more details.
+ */
+
+ /*
+ int dfd
+ const char *pathname
+ int open_flag
+ int mode
+ int acc_mode
  */
 struct file *do_filp_open(int dfd, const char *pathname,
 		int open_flag, int mode, int acc_mode)
@@ -1764,7 +1775,7 @@ do_last:
 		error = PTR_ERR(nd.intent.open.file);
 		goto exit_mutex_unlock;
 	}
-
+	/* d-inode为空，说明文件不存在，需要创建inode */
 	/* Negative dentry, just create the file */
 	if (!path.dentry->d_inode) {
 		/*

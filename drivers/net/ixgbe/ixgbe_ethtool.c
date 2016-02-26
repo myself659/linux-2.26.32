@@ -1480,7 +1480,7 @@ static int ixgbe_setup_desc_rings(struct ixgbe_adapter *adapter)
 		union ixgbe_adv_tx_desc *desc = IXGBE_TX_DESC_ADV(*tx_ring, i);
 		struct sk_buff *skb;
 		unsigned int size = 1024;
-
+		/* 当一个报文长度大于1024，这个报文会如何存储 */
 		skb = alloc_skb(size, GFP_KERNEL);
 		if (!skb) {
 			ret_val = 3;

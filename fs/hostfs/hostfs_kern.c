@@ -124,8 +124,10 @@ static char *dentry_name(struct dentry *dentry, int extra)
 static char *inode_name(struct inode *ino, int extra)
 {
 	struct dentry *dentry;
-
-	dentry = list_entry(ino->i_dentry.next, struct dentry, d_alias);
+	/*
+	根据结构体的成员指针获取结构体指针  
+	*/
+	dentry = list_entry(ino->i_dentry.next, struct dentry, d_alias);  
 	return dentry_name(dentry, extra);
 }
 

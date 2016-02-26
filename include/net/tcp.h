@@ -247,13 +247,17 @@ extern int tcp_memory_pressure;
  * and worry about wraparound (automatic with unsigned arithmetic).
  */
 
+/* 比较大小，如果第一个小，返回true  */
 static inline int before(__u32 seq1, __u32 seq2)
 {
         return (__s32)(seq1-seq2) < 0;
 }
+
+/* 比较大，如果第一个大，返回true */
 #define after(seq2, seq1) 	before(seq1, seq2)
 
 /* is s2<=s1<=s3 ? */
+
 static inline int between(__u32 seq1, __u32 seq2, __u32 seq3)
 {
 	return seq3 - seq2 >= seq1 - seq2;

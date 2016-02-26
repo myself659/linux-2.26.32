@@ -200,6 +200,7 @@ struct sk_buff *__alloc_skb(unsigned int size, gfp_t gfp_mask,
 	atomic_set(&skb->users, 1);
 	skb->head = data;
 	skb->data = data;
+	/*  ½«skb->tail = data  */
 	skb_reset_tail_pointer(skb);
 	skb->end = skb->tail + size;
 	kmemcheck_annotate_bitfield(skb, flags1);

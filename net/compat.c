@@ -768,6 +768,7 @@ asmlinkage long compat_sys_recvfrom(int fd, void __user *buf, size_t len,
 	return sys_recvfrom(fd, buf, len, flags | MSG_CMSG_COMPAT, addr, addrlen);
 }
 
+/*  socket 相关系统调用内核态入口  */
 asmlinkage long compat_sys_socketcall(int call, u32 __user *args)
 {
 	int ret;

@@ -445,6 +445,9 @@ static inline void sock_valbool_flag(struct sock *sk, int bit, int valbool)
  *	at the socket level. Everything here is generic.
  */
 
+/* 
+设置socket 选项内容 
+*/
 int sock_setsockopt(struct socket *sock, int level, int optname,
 		    char __user *optval, unsigned int optlen)
 {
@@ -1789,6 +1792,9 @@ static void sock_def_readable(struct sock *sk, int len)
 	read_unlock(&sk->sk_callback_lock);
 }
 
+/*
+引用写空间 		
+*/
 static void sock_def_write_space(struct sock *sk)
 {
 	read_lock(&sk->sk_callback_lock);

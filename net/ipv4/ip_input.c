@@ -206,7 +206,8 @@ static int ip_local_deliver_finish(struct sk_buff *skb)
 
 	resubmit:
 		raw = raw_local_deliver(skb, protocol);
-
+		
+		/* 根据协议类型进行分发处理 */
 		hash = protocol & (MAX_INET_PROTOS - 1);
 		ipprot = rcu_dereference(inet_protos[hash]);
 		if (ipprot != NULL) {
@@ -227,6 +228,7 @@ static int ip_local_deliver_finish(struct sk_buff *skb)
 				}
 				nf_reset(skb);
 			}
+			/*  tcp为例 tcp_v4_rcv  */
 			ret = ipprot->handler(skb);
 			if (ret < 0) {
 				protocol = -ret;
@@ -442,7 +444,7 @@ int ip_rcv(struct sk_buff *skb, struct net_device *dev, struct packet_type *pt, 
 
 	/* Must drop socket now because of tproxy. */
 	skb_orphan(skb);
-
+	/* 不考虑netfliter，等同于ip_rcv_finish(skb) */
 	return NF_HOOK(PF_INET, NF_INET_PRE_ROUTING, skb, dev, NULL,
 		       ip_rcv_finish);
 

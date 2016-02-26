@@ -14,6 +14,8 @@
  * the dcache entry is deleted or garbage collected.
  */
 
+ /* dentry cache  */
+
 #include <linux/syscalls.h>
 #include <linux/string.h>
 #include <linux/mm.h>

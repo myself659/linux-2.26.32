@@ -232,7 +232,8 @@ struct sock {
 				sk_protocol  : 8,
 				sk_type      : 16;
 	kmemcheck_bitfield_end(flags);
-	int			sk_rcvbuf;
+	int			sk_rcvbuf; 	/* setsockopt设置的接收缓冲区的值  */
+	/* */
 	socket_lock_t		sk_lock;
 	/*
 	 * The backlog queue is special, it is always used with
@@ -243,22 +244,22 @@ struct sock {
 		struct sk_buff *head;
 		struct sk_buff *tail;
 	} sk_backlog;
-	wait_queue_head_t	*sk_sleep;
+	wait_queue_head_t	*sk_sleep;  /* 等待此socket事件的队列 */
 	struct dst_entry	*sk_dst_cache;
 #ifdef CONFIG_XFRM
 	struct xfrm_policy	*sk_policy[2];
 #endif
 	rwlock_t		sk_dst_lock;
-	atomic_t		sk_rmem_alloc;
+	atomic_t		sk_rmem_alloc;	/* 接收队列字节承诺 */
 	atomic_t		sk_wmem_alloc;
 	atomic_t		sk_omem_alloc;
 	int			sk_sndbuf;
-	struct sk_buff_head	sk_receive_queue;
-	struct sk_buff_head	sk_write_queue;
+	struct sk_buff_head	sk_receive_queue;	/* 接收队列  */
+	struct sk_buff_head	sk_write_queue;   /* 发送队列 */
 #ifdef CONFIG_NET_DMA
 	struct sk_buff_head	sk_async_wait_queue;
 #endif
-	int			sk_wmem_queued;
+	int			sk_wmem_queued; /* 写内存占用空间大小  */
 	int			sk_forward_alloc;
 	gfp_t			sk_allocation;
 	int			sk_route_caps;
@@ -277,13 +278,13 @@ struct sock {
 	unsigned short		sk_max_ack_backlog;
 	__u32			sk_priority;
 	struct ucred		sk_peercred;
-	long			sk_rcvtimeo;
-	long			sk_sndtimeo;
+	long			sk_rcvtimeo; /* 接收超时时间 */
+	long			sk_sndtimeo; /* 发送超时时间 */
 	struct sk_filter      	*sk_filter;
-	void			*sk_protinfo;
+	void			*sk_protinfo;  /* socket 对应协议信息，例如ax25_cb */
 	struct timer_list	sk_timer;
 	ktime_t			sk_stamp;
-	struct socket		*sk_socket;
+	struct socket		*sk_socket; /* 对应用户态信息 */
 	void			*sk_user_data;
 	struct page		*sk_sndmsg_page;
 	struct sk_buff		*sk_send_head;
@@ -821,13 +822,13 @@ static inline int sk_mem_pages(int amt)
 {
 	return (amt + SK_MEM_QUANTUM - 1) >> SK_MEM_QUANTUM_SHIFT;
 }
-
+/* */
 static inline int sk_has_account(struct sock *sk)
 {
 	/* return true if protocol supports memory accounting */
 	return !!sk->sk_prot->memory_allocated;
 }
-
+/* 发送写内存*/
 static inline int sk_wmem_schedule(struct sock *sk, int size)
 {
 	if (!sk_has_account(sk))

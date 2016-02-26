@@ -30,6 +30,7 @@ struct embedded_fd_set {
 
 struct fdtable {
 	unsigned int max_fds;
+	/* 打开文件数组  */
 	struct file ** fd;      /* current fd array */
 	fd_set *close_on_exec;
 	fd_set *open_fds;
@@ -39,6 +40,7 @@ struct fdtable {
 
 /*
  * Open file table structure
+ 用于一个进程的文件表 
  */
 struct files_struct {
   /*

@@ -118,14 +118,15 @@ int sk_stream_wait_memory(struct sock *sk, long *timeo_p)
 	int err = 0;
 	long vm_wait = 0;
 	long current_timeo = *timeo_p;
-	DEFINE_WAIT(wait);
+	
+	DEFINE_WAIT(wait); /* 定义等待队列  */
 
 	if (sk_stream_memory_free(sk))
 		current_timeo = vm_wait = (net_random() % (HZ / 5)) + 2;
 
 	while (1) {
 		set_bit(SOCK_ASYNC_NOSPACE, &sk->sk_socket->flags);
-
+		/* 加入该sock 的等待队列  */
 		prepare_to_wait(sk->sk_sleep, &wait, TASK_INTERRUPTIBLE);
 
 		if (sk->sk_err || (sk->sk_shutdown & SEND_SHUTDOWN))

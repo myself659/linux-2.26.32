@@ -86,20 +86,33 @@ full_name_hash(const unsigned char *name, unsigned int len)
 #define DNAME_INLINE_LEN_MIN 40 /* 128 bytes */
 #endif
 
+/* 
+directory entry 目录项 
+represents a name to inode mapping
+文件名与inode的映射节点 
+*/
 struct dentry {
-	atomic_t d_count;
-	unsigned int d_flags;		/* protected by d_lock */
-	spinlock_t d_lock;		/* per dentry lock */
+	atomic_t d_count;  /* 目录项对象使用计数器 */
+	/* 目录标志如下:
+	1. 空闲状态 处于该状态的目录项对象不包括有效信息，且没有被VFS使用
+	2. 未使用（unused）状态：该dentry对象的引用计数d_count的值为0，但其d_inode指针仍然指向相关的的索引节点。
+	该目录项仍然包含有效的信息，只是当前没有人引用他。这种dentry对象在回收内存时可能会被释放。
+	3. 正在使用（inuse）状态：处于该状态下的dentry对象的引用计数d_count大于0，且其d_inode指向相关的inode对象。这种dentry对象不能被释放
+	4.负（negative）状态：与目录项相关的inode对象不复存在（相应的磁盘索引节点可能已经被删除），dentry对象的d_inode指针为NULL。
+	但这种dentry对象仍然保存在dcache中，以便后续对同一文件名的查找能够快速完成。这种dentry对象在回收内存时将首先被释放
+	*/
+	unsigned int d_flags;		/*  目录项标志 protected by d_lock */
+	spinlock_t d_lock;		/*  per dentry lock */
 	int d_mounted;
-	struct inode *d_inode;		/* Where the name belongs to - NULL is
+	struct inode *d_inode;		/*   与文件名关联的索引节点 Where the name belongs to - NULL is
 					 * negative */
 	/*
 	 * The next three fields are touched by __d_lookup.  Place them here
 	 * so they all fit in a cache line.
 	 */
-	struct hlist_node d_hash;	/* lookup hash list */
-	struct dentry *d_parent;	/* parent directory */
-	struct qstr d_name;
+	struct hlist_node d_hash;	/* 散列表表项的指针  lookup hash list */
+	struct dentry *d_parent;	/* 父目录的目录项对象 parent directory */
+	struct qstr d_name; /* 文件名 */
 
 	struct list_head d_lru;		/* LRU list */
 	/*
@@ -109,14 +122,14 @@ struct dentry {
 		struct list_head d_child;	/* child of parent list */
 	 	struct rcu_head d_rcu;
 	} d_u;
-	struct list_head d_subdirs;	/* our children */
-	struct list_head d_alias;	/* inode alias list */
+	struct list_head d_subdirs;	/* 对目录而言，表示子目录目录项对象的链表 our children */
+	struct list_head d_alias;	/* 相关索引节点（别名）的链表  inode alias list */
 	unsigned long d_time;		/* used by d_revalidate */
-	const struct dentry_operations *d_op;
-	struct super_block *d_sb;	/* The root of the dentry tree */
-	void *d_fsdata;			/* fs-specific data */
+	const struct dentry_operations *d_op; /* 目录项方法 */
+	struct super_block *d_sb;	/* 文件的超级块对象 The root of the dentry tree */
+	void *d_fsdata;			/*  文件系统私有数据  fs-specific data */
 
-	unsigned char d_iname[DNAME_INLINE_LEN_MIN];	/* small names */
+	unsigned char d_iname[DNAME_INLINE_LEN_MIN];	/*  短文件名 small names */
 };
 
 /*

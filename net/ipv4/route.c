@@ -2174,6 +2174,7 @@ brd_input:
 	if (ipv4_is_zeronet(saddr))
 		spec_dst = inet_select_addr(dev, 0, RT_SCOPE_LINK);
 	else {
+		/* 验证源地址 */
 		err = fib_validate_source(saddr, 0, tos, 0, dev, &spec_dst,
 					  &itag, skb->mark);
 		if (err < 0)
@@ -2214,7 +2215,7 @@ local_input:
 	rth->idev	= in_dev_get(rth->u.dst.dev);
 	rth->rt_gateway	= daddr;
 	rth->rt_spec_dst= spec_dst;
-	rth->u.dst.input= ip_local_deliver;
+	rth->u.dst.input= ip_local_deliver;  /* 设置接收处理函数  */
 	rth->rt_flags 	= flags|RTCF_LOCAL;
 	if (res.type == RTN_UNREACHABLE) {
 		rth->u.dst.input= ip_error;
@@ -2276,6 +2277,7 @@ int ip_route_input(struct sk_buff *skb, __be32 daddr, __be32 saddr,
 		goto skip_cache;
 
 	tos &= IPTOS_RT_MASK;
+	/* 计算hash */
 	hash = rt_hash(daddr, saddr, iif, rt_genid(net));
 
 	rcu_read_lock();
@@ -2293,6 +2295,7 @@ int ip_route_input(struct sk_buff *skb, __be32 daddr, __be32 saddr,
 			RT_CACHE_STAT_INC(in_hit);
 			rcu_read_unlock();
 			skb_dst_set(skb, &rth->u.dst);
+			/* 快路径处理  */
 			return 0;
 		}
 		RT_CACHE_STAT_INC(in_hlist_search);
@@ -2325,6 +2328,7 @@ skip_cache:
 #endif
 			    ) {
 				rcu_read_unlock();
+				/* 组播处理 */
 				return ip_route_input_mc(skb, daddr, saddr,
 							 tos, dev, our);
 			}
@@ -2332,6 +2336,7 @@ skip_cache:
 		rcu_read_unlock();
 		return -EINVAL;
 	}
+	/* 慢路径处理 */
 	return ip_route_input_slow(skb, daddr, saddr, tos, dev);
 }
 
@@ -2443,7 +2448,7 @@ static int __mkroute_output(struct rtable **result,
 		}
 #endif
 	}
-
+	/* 设置下一跳 */
 	rt_set_nexthop(rth, res, 0);
 
 	rth->rt_flags = flags;

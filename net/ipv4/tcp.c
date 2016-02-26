@@ -1020,7 +1020,7 @@ new_segment:
 				if (copy > PAGE_SIZE - off)
 					copy = PAGE_SIZE - off;
 
-				if (!sk_wmem_schedule(sk, copy))
+				if (!sk_wmem_schedule(sk, copy)) /* 内存不足 */
 					goto wait_for_memory;
 
 				if (!page) {
@@ -1086,6 +1086,7 @@ new_segment:
 wait_for_sndbuf:
 			set_bit(SOCK_NOSPACE, &sk->sk_socket->flags);
 wait_for_memory:
+			/* 尝试发送 */
 			if (copied)
 				tcp_push(sk, flags & ~MSG_MORE, mss_now, TCP_NAGLE_PUSH);
 
@@ -1372,7 +1373,8 @@ int tcp_recvmsg(struct kiocb *iocb, struct sock *sk, struct msghdr *msg,
 	int copied_early = 0;
 	struct sk_buff *skb;
 	u32 urg_hole = 0;
-
+	
+	/* lock sock 加锁计数置为1  */
 	lock_sock(sk);
 
 	TCP_CHECK_TIMER(sk);

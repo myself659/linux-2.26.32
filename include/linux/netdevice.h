@@ -153,6 +153,7 @@ struct net_device_stats
 	unsigned long	tx_heartbeat_errors;
 	unsigned long	tx_window_errors;
 	
+	/* 压缩串行线路网际协议（Compressed Serial Line Internet Protocol） */
 	/* for cslip etc */
 	unsigned long	rx_compressed;
 	unsigned long	tx_compressed;
@@ -323,9 +324,11 @@ struct napi_struct {
 	 * to the per-cpu poll_list, and whoever clears that bit
 	 * can remove from the list right before clearing the bit.
 	 */
+	 /* NAPI_STATE_SCHED时才能加入每cpu的poll 链表   */
 	struct list_head	poll_list;
 
 	unsigned long		state;
+	/* schedule 权重 */
 	int			weight;
 	int			(*poll)(struct napi_struct *, int);
 #ifdef CONFIG_NETPOLL /* 定义在drivers/net/Kconfig  */
@@ -334,10 +337,12 @@ struct napi_struct {
 #endif
 
 	unsigned int		gro_count;
-
+	/* 指向net_device */
 	struct net_device	*dev;
 	struct list_head	dev_list;
+	/* gro链表  */
 	struct sk_buff		*gro_list;
+	/* skbuff list  */
 	struct sk_buff		*skb;
 };
 
@@ -664,11 +669,21 @@ if_port
 hard_header_length, mtu, tx_queue_len, type, addr_len, dev_addr,
 broadcast, dev_mc_list, mc_count, watchdog_timeo, watchdog_timer
 
+网络层字段:
+ip_ptr, ip6_ptr, atalk_ptr, dn_ptr, ec_ptr, family, pa_alen,
+pa_addr, pa_braddr, pa_mask, pa_dstaddr, flags
 
+设备驱动:对应(net_device_ops)
 
+init(), uninit(), destructor(), open(), stop(), hard_start_xmit(),
+get_stats(), get_wireless_stats(), set_multicast_list(),
+watchdog_timeo(), do_ioctl(), set_config(), hard_header(),
+rebuild_header(), hard_header_cache(), header_cache_update(),
+hard_header_parse(), set_mac_address(), change_mtu()
 
 */
 
+/* ##net_device 与虚拟化之间的关系   */
 
 struct net_device
 {
@@ -762,7 +777,7 @@ struct net_device
 	/* ##这两个字段的差别 */
 	int			ifindex;
 	int			iflink;
-
+	/* 设备统计信息 */
 	struct net_device_stats	stats;
 
 #ifdef CONFIG_WIRELESS_EXT
@@ -1247,7 +1262,7 @@ struct softnet_data
  	// 对于NAPI接口，每个driver的napi结构可以通过napi_schedule加入到这个poll_list上
  	// 对于非NAPI接口，把softnet_data->backlog通过napi_schedule加入到这个poll_list上
  	// 这样做的目的是，无论NAPI还是non NAPI都统一到net_rx_action函数的一致处理流程上来
-	struct list_head	poll_list;  /*  */
+	struct list_head	poll_list;   
 	struct sk_buff		*completion_queue;
 
 	struct napi_struct	backlog;

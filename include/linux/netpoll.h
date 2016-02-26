@@ -45,6 +45,11 @@ int __netpoll_rx(struct sk_buff *skb);
 
 
 #ifdef CONFIG_NETPOLL
+
+/*
+netpoll 方式接收函数  
+netpoll主要用于网络和IO不完整时，仍然能收发包，主要用于调试 
+*/
 static inline int netpoll_rx(struct sk_buff *skb)
 {
 	struct netpoll_info *npinfo = skb->dev->npinfo;

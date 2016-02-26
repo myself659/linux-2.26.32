@@ -377,7 +377,7 @@ struct device_dma_parameters {
 };
 
 
-/* */
+/* 设备管理  计算机需要知道设备共性信息  */
 struct device {
 	struct device		*parent;
 

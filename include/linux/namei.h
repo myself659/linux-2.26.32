@@ -15,6 +15,9 @@ struct open_intent {
 
 enum { MAX_NESTED_LINKS = 8 };
 
+/*
+
+*/
 struct nameidata {
 	struct path	path;
 	struct qstr	last;

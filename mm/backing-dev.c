@@ -648,6 +648,7 @@ void bdi_unregister(struct backing_dev_info *bdi)
 }
 EXPORT_SYMBOL(bdi_unregister);
 
+/*  ²»Ã÷°× */
 int bdi_init(struct backing_dev_info *bdi)
 {
 	int i, err;

@@ -118,7 +118,7 @@ struct rtable;
  */
 struct inet_sock {
 	/* sk and pinet6 has to be the first two members of inet_sock */
-	struct sock		sk;
+	struct sock		sk; 
 #if defined(CONFIG_IPV6) || defined(CONFIG_IPV6_MODULE)
 	struct ipv6_pinfo	*pinet6;
 #endif

@@ -70,28 +70,31 @@ static struct cgroup_subsys *subsys[] = {
  * and may be associated with a superblock to form an active
  * hierarchy
  */
+ /*  cgroup的根目录数据结构   */
 struct cgroupfs_root {
-	struct super_block *sb;
+	
+	struct super_block *sb; /* cgroup 文件系统超级块 */
 
 	/*
 	 * The bitmask of subsystems intended to be attached to this
 	 * hierarchy
+	 * hierarchy相关联的subsys位图 
 	 */
-	unsigned long subsys_bits;
+	unsigned long subsys_bits; 
 
 	/* Unique id for this hierarchy. */
 	int hierarchy_id;
 
-	/* The bitmask of subsystems currently attached to this hierarchy */
+	/* The bitmask of subsystems currently attached to this hierarchy  当前hierarchy 中的subsys位图  */
 	unsigned long actual_subsys_bits;
 
-	/* A list running through the attached subsystems */
+	/* A list running through the attached subsystems  subsys链表 */
 	struct list_head subsys_list;
 
-	/* The root cgroup for this hierarchy */
+	/* The root cgroup for this hierarchy  顶层cgroup  */
 	struct cgroup top_cgroup;
 
-	/* Tracks how many cgroups are currently defined in hierarchy.*/
+	/* Tracks how many cgroups are currently defined in hierarchy.  hierarchy中cgroup的数目 */
 	int number_of_cgroups;
 
 	/* A list running through the active hierarchies */
@@ -210,6 +213,7 @@ static DECLARE_WORK(release_agent_work, cgroup_release_agent);
 static void check_for_release(struct cgroup *cgrp);
 
 /* Link structure for associating css_set objects with cgroups */
+/* 关联数据结构css_set与cgroups  */
 struct cg_cgroup_link {
 	/*
 	 * List running through cg_cgroup_links associated with a
@@ -250,6 +254,8 @@ static int css_set_count;
  */
 #define CSS_SET_HASH_BITS	7
 #define CSS_SET_TABLE_SIZE	(1 << CSS_SET_HASH_BITS)
+
+/* 全局变量  cgroup_subsys_state的hash slot 数组 */
 static struct hlist_head css_set_table[CSS_SET_TABLE_SIZE];
 
 static struct hlist_head *css_set_hash(struct cgroup_subsys_state *css[])
@@ -3211,6 +3217,7 @@ static void __init cgroup_init_subsys(struct cgroup_subsys *ss)
  * Initialize cgroups at system boot, and initialize any
  * subsystems that request early init.
  */
+ /* 系统启动时初始化  */
 int __init cgroup_init_early(void)
 {
 	int i;
@@ -3221,8 +3228,9 @@ int __init cgroup_init_early(void)
 	css_set_count = 1;
 	init_cgroup_root(&rootnode);
 	root_count = 1;
+	/* 使系统的初始化进程cgroup指向init_css_set */
 	init_task.cgroups = &init_css_set;
-
+	/* 将init_css_set和rootnode.top_cgroup关联起来 */
 	init_css_set_link.cg = &init_css_set;
 	init_css_set_link.cgrp = dummytop;
 	list_add(&init_css_set_link.cgrp_link_list,
@@ -3258,6 +3266,7 @@ int __init cgroup_init_early(void)
  * Register cgroup filesystem and /proc file, and initialize
  * any subsystems that didn't request early init.
  */
+ /* cgroup  第二阶段初始化  注册cgroup文件系统及proc文件 */
 int __init cgroup_init(void)
 {
 	int err;
@@ -3267,7 +3276,7 @@ int __init cgroup_init(void)
 	err = bdi_init(&cgroup_backing_dev_info);
 	if (err)
 		return err;
-
+	/* 将剩下的(不需要在系统启动时初始化的subsys)的subsys进行初始化 */
 	for (i = 0; i < CGROUP_SUBSYS_COUNT; i++) {
 		struct cgroup_subsys *ss = subsys[i];
 		if (!ss->early_init)
@@ -3280,10 +3289,11 @@ int __init cgroup_init(void)
 	hhead = css_set_hash(init_css_set.subsys);
 	hlist_add_head(&init_css_set.hlist, hhead);
 	BUG_ON(!init_root_id(&rootnode));
+	/* 注册cgroup文件系统  */
 	err = register_filesystem(&cgroup_fs_type);
 	if (err < 0)
 		goto out;
-
+	/* 在proc文件系统的根目录下创建一个名为cgroups的文件 */
 	proc_create("cgroups", 0, NULL, &proc_cgroupstats_operations);
 
 out:
@@ -3416,11 +3426,13 @@ static const struct file_operations proc_cgroupstats_operations = {
  * At the point that cgroup_fork() is called, 'current' is the parent
  * task, and the passed argument 'child' points to the child task.
  */
+ 
+ /* fork 进程从父线程继承group  */
 void cgroup_fork(struct task_struct *child)
 {
 	task_lock(current);
 	child->cgroups = current->cgroups;
-	get_css_set(child->cgroups);
+	get_css_set(child->cgroups); /* 计数加1 */
 	task_unlock(current);
 	INIT_LIST_HEAD(&child->cg_list);
 }
@@ -3663,6 +3675,7 @@ int cgroup_clone(struct task_struct *tsk, struct cgroup_subsys *subsys,
  *
  * Called only by the ns (nsproxy) cgroup.
  */
+ /* 判断任务与group是否有祖传关系  */
 int cgroup_is_descendant(const struct cgroup *cgrp, struct task_struct *task)
 {
 	int ret;

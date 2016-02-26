@@ -1014,7 +1014,9 @@ EXPORT_SYMBOL(put_unused_fd);
  * It should never happen - if we allow dup2() do it, _really_ bad things
  * will follow.
  */
-
+/*
+文件fd保存到struct file的fd数组 
+*/
 void fd_install(unsigned int fd, struct file *file)
 {
 	struct files_struct *files = current->files;
@@ -1036,7 +1038,7 @@ long do_sys_open(int dfd, const char __user *filename, int flags, int mode)
 	if (!IS_ERR(tmp)) {
 		fd = get_unused_fd_flags(flags);
 		if (fd >= 0) {
-			struct file *f = do_filp_open(dfd, tmp, flags, mode, 0);
+			struct file *f = do_filp_open(dfd, tmp, flags, mode, 0);  /* */
 			if (IS_ERR(f)) {
 				put_unused_fd(fd);
 				fd = PTR_ERR(f);
@@ -1050,6 +1052,7 @@ long do_sys_open(int dfd, const char __user *filename, int flags, int mode)
 	return fd;
 }
 
+/* open 对应系统调用  */
 SYSCALL_DEFINE3(open, const char __user *, filename, int, flags, int, mode)
 {
 	long ret;

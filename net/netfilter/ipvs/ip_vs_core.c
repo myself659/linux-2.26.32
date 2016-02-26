@@ -1414,7 +1414,9 @@ ip_vs_forward_icmp_v6(unsigned int hooknum, struct sk_buff *skb,
 #endif
 
 
-static struct nf_hook_ops ip_vs_ops[] __read_mostly = {
+//static struct nf_hook_ops ip_vs_ops[] __read_mostly = {
+static struct nf_hook_ops ip_vs_ops[] = {
+
 	/* After packet filtering, forward packet through VS/DR, VS/TUN,
 	 * or VS/NAT(change destination), so that filtering rules can be
 	 * applied to IPVS. */

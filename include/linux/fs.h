@@ -618,6 +618,8 @@ int pagecache_write_end(struct file *, struct address_space *mapping,
 				struct page *page, void *fsdata);
 
 struct backing_dev_info;
+
+/* 文件偏移与内存页偏移关联  */
 struct address_space {
 	struct inode		*host;		/* owner: inode, block_device */
 	struct radix_tree_root	page_tree;	/* radix tree of all pages */
@@ -720,25 +722,28 @@ static inline int mapping_writably_mapped(struct address_space *mapping)
 struct posix_acl;
 #define ACL_NOT_CACHED ((void *)(-1))
 
+/* 文件节点 
+*/
 struct inode {
-	struct hlist_node	i_hash;
+	struct hlist_node	i_hash;     /*  hash节点 */
 	struct list_head	i_list;		/* backing dev IO list */
-	struct list_head	i_sb_list;
-	struct list_head	i_dentry;
-	unsigned long		i_ino;
+	struct list_head	i_sb_list;  /*  */
+	struct list_head	i_dentry;  /*  链表节点，加入链表d_alias   指向struct dentry  */
+	/* stat 命令显示内容  */
+	unsigned long		i_ino;  /* inode 系统内唯一 */
 	atomic_t		i_count;
-	unsigned int		i_nlink;
+	unsigned int		i_nlink;  /* 表示什么链接数呢  */
 	uid_t			i_uid;
 	gid_t			i_gid;
 	dev_t			i_rdev;
 	u64			i_version;
-	loff_t			i_size;
+	loff_t			i_size; 
 #ifdef __NEED_I_SIZE_ORDERED
 	seqcount_t		i_size_seqcount;
 #endif
-	struct timespec		i_atime;
-	struct timespec		i_mtime;
-	struct timespec		i_ctime;
+	struct timespec		i_atime;  /*  Access: 2016-02-24 16:30:31.000000000 +0800 */
+	struct timespec		i_mtime;  /*  Modify: 2015-12-23 16:21:08.000000000 +0800 */
+	struct timespec		i_ctime;  /*  Change: 2015-12-23 16:21:08.000000000 +0800 */
 	blkcnt_t		i_blocks;
 	unsigned int		i_blkbits;
 	unsigned short          i_bytes;
@@ -747,8 +752,8 @@ struct inode {
 	struct mutex		i_mutex;
 	struct rw_semaphore	i_alloc_sem;
 	const struct inode_operations	*i_op;
-	const struct file_operations	*i_fop;	/* former ->i_op->default_file_ops */
-	struct super_block	*i_sb;
+	const struct file_operations	*i_fop;	 /* former ->i_op->default_file_ops */
+	struct super_block	*i_sb;   			/* 文件块 */
 	struct file_lock	*i_flock;
 	struct address_space	*i_mapping;
 	struct address_space	i_data;
@@ -909,6 +914,7 @@ static inline int ra_has_index(struct file_ra_state *ra, pgoff_t index)
 #define FILE_MNT_WRITE_TAKEN	1
 #define FILE_MNT_WRITE_RELEASED	2
 
+/* 打开的文件 */
 struct file {
 	/*
 	 * fu_list becomes invalid after file_free is called and queued via
@@ -919,11 +925,11 @@ struct file {
 		struct rcu_head 	fu_rcuhead;
 	} f_u;
 	struct path		f_path;
-#define f_dentry	f_path.dentry
-#define f_vfsmnt	f_path.mnt
-	const struct file_operations	*f_op;
+#define f_dentry	f_path.dentry  /* 打开文件对应struct dentry  */
+#define f_vfsmnt	f_path.mnt     /* 文件挂载 */
+	const struct file_operations	*f_op; /* 文件操作 */
 	spinlock_t		f_lock;  /* f_ep_links, f_flags, no IRQ */
-	atomic_long_t		f_count;
+	atomic_long_t		f_count; 
 	unsigned int 		f_flags;
 	fmode_t			f_mode;
 	loff_t			f_pos;
@@ -1320,6 +1326,7 @@ extern spinlock_t sb_lock;
 
 #define sb_entry(list)  list_entry((list), struct super_block, s_list)
 #define S_BIAS (1<<30)
+/* 表示块文件元数据信息 */
 struct super_block {
 	struct list_head	s_list;		/* Keep this first */
 	dev_t			s_dev;		/* search index; _not_ kdev_t */
@@ -1559,6 +1566,7 @@ extern ssize_t vfs_readv(struct file *, const struct iovec __user *,
 extern ssize_t vfs_writev(struct file *, const struct iovec __user *,
 		unsigned long, loff_t *);
 
+/* 元数据操作 */
 struct super_operations {
    	struct inode *(*alloc_inode)(struct super_block *sb);
 	void (*destroy_inode)(struct inode *);
@@ -1742,6 +1750,7 @@ static inline void file_accessed(struct file *file)
 
 int sync_inode(struct inode *inode, struct writeback_control *wbc);
 
+/* 描述文件系统  */
 struct file_system_type {
 	const char *name;
 	int fs_flags;

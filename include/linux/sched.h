@@ -1373,9 +1373,9 @@ struct task_struct {
 #endif
 /* CPU-specific state of this task */
 	struct thread_struct thread;
-/* filesystem information */
+/* filesystem information  文件系统 指向dentries */
 	struct fs_struct *fs;
-/* open file information */
+/* open file information  打开文件 指向打开的文件实例  */
 	struct files_struct *files;
 /* namespaces */
 	struct nsproxy *nsproxy;
@@ -1475,6 +1475,7 @@ struct task_struct {
 	int cpuset_mem_spread_rotor;
 #endif
 #ifdef CONFIG_CGROUPS
+	
 	/* Control Group info protected by css_set_lock */
 	struct css_set *cgroups;
 	/* cg_list protected by css_set_lock and tsk->alloc_lock */

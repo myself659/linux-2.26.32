@@ -29,13 +29,23 @@ struct tcphdr {
 #if defined(__LITTLE_ENDIAN_BITFIELD)
 	__u16	res1:4,
 		doff:4,
-		fin:1,
+		fin:1, /* fin标志，*/
 		syn:1,
 		rst:1,
 		psh:1,
 		ack:1,
 		urg:1,
+		/*
+		ECN:Explicit Congestion Notification  拥塞通知
+		ECN-Echo has a dual role, depending on the value of the SYN flag. It indicates:
+		If the SYN flag is set (1), that the TCP peer is ECN capable.
+		If the SYN flag is clear (0), that a packet with Congestion Experienced flag in IP header set is received during normal transmission 	
+		*/
 		ece:1,
+		/*  
+		Congestion Window Reduced (CWR) flag is set by the sending host to indicate that 
+		it received a TCP segment with the ECE flag set and had responded in congestion control mechanism 
+		*/
 		cwr:1;
 #elif defined(__BIG_ENDIAN_BITFIELD)
 	__u16	doff:4,
@@ -102,16 +112,22 @@ enum {
 #define TCPI_OPT_WSCALE		4
 #define TCPI_OPT_ECN		8
 
+/* tcp 五个拥塞状态  */
 enum tcp_ca_state
 {
-	TCP_CA_Open = 0,
+	/* 初始状态，也表示没有检测到任何拥塞的情况  */
+	TCP_CA_Open = 0,	
 #define TCPF_CA_Open	(1<<TCP_CA_Open)
+	/* 第一次收到sack选项或者重复的ack而检测的拥塞，进入该状态  */
 	TCP_CA_Disorder = 1,
 #define TCPF_CA_Disorder (1<<TCP_CA_Disorder)
+	/* 由于一些拥塞通知事件而导致拥塞窗口减小,然后就会进入这个状态。比如ECN，ICMP，本地设备拥塞 */
 	TCP_CA_CWR = 2,
 #define TCPF_CA_CWR	(1<<TCP_CA_CWR)
+	/* 当cwnd 减小 */
 	TCP_CA_Recovery = 3,
 #define TCPF_CA_Recovery (1<<TCP_CA_Recovery)
+	/*  超时或者SACK被拒绝，此时表示数据包丢失，因此进入这个状态 */
 	TCP_CA_Loss = 4
 #define TCPF_CA_Loss	(1<<TCP_CA_Loss)
 };
@@ -300,12 +316,15 @@ struct tcp_sock {
 	u8	frto_counter;	/* Number of new acks after RTO */
 	u8	nonagle;	/* Disable Nagle algorithm?             */
 
-/* RTT measurement */
+	/* RTT measurement */ 
+	/* rtt测量  根据rtt计算方案如何调整用户态编程参数设置 */
 	u32	srtt;		/* smoothed round trip time << 3	*/
 	u32	mdev;		/* medium deviation			*/
 	u32	mdev_max;	/* maximal mdev for the last rtt period	*/
+	/* 平滑rtt值  */
 	u32	rttvar;		/* smoothed mdev_max			*/
 	u32	rtt_seq;	/* sequence number to update rttvar	*/
+
 
 	u32	packets_out;	/* Packets which are "in flight"	*/
 	u32	retrans_out;	/* Retransmitted packets out		*/

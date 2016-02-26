@@ -126,6 +126,11 @@ enum sock_shutdown_cmd {
  *  @sk: internal networking protocol agnostic socket representation
  *  @wait: wait queue for several uses
  */
+ /* 
+ struct socket  vs struct sock 
+"/usr/include/sys/socket.h" is an appropriate header to use for a user-space sockets program. 
+"/usr/src/linux/include/net/sock.h" is a kernel header for the kernel implementation of TCP/IP. 
+*/
 struct socket {
 	socket_state		state;
 
@@ -141,6 +146,7 @@ struct socket {
 	wait_queue_head_t	wait;
 
 	struct file		*file;
+	/* 内核协议实现 */
 	struct sock		*sk;
 	const struct proto_ops	*ops;
 };
