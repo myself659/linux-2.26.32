@@ -167,7 +167,7 @@ __u32 cookie_v4_init_sequence(struct sock *sk, struct sk_buff *skb, __u16 *mssp)
 	int mssind;
 	const __u16 mss = *mssp;
 
-	tcp_synq_overflow(sk);
+	tcp_synq_overflow(sk);  /* 记录半连接队列溢出的最近时间 */ 
 
 	/* XXX sort msstab[] by probability?  Binary search? */
 	for (mssind = 0; mss > msstab[mssind + 1]; mssind++)
@@ -178,7 +178,7 @@ __u32 cookie_v4_init_sequence(struct sock *sk, struct sk_buff *skb, __u16 *mssp)
 
 	return secure_tcp_syn_cookie(iph->saddr, iph->daddr,
 				     th->source, th->dest, ntohl(th->seq),
-				     jiffies / (HZ * 60), mssind);
+				     jiffies / (HZ * 60), mssind);  /* 计算SYN Cookie的具体值 */   
 }
 
 /*
@@ -192,11 +192,15 @@ __u32 cookie_v4_init_sequence(struct sock *sk, struct sk_buff *skb, __u16 *mssp)
  * Check if a ack sequence number is a valid syncookie.
  * Return the decoded mss if it is, or 0 if not.
  */
+ 
+ /*
+cookie检查
+ */
 static inline int cookie_check(struct sk_buff *skb, __u32 cookie)
 {
 	const struct iphdr *iph = ip_hdr(skb);
 	const struct tcphdr *th = tcp_hdr(skb);
-	__u32 seq = ntohl(th->seq) - 1;
+	__u32 seq = ntohl(th->seq) - 1;  /* SYN的序号 */ 
 	__u32 mssind = check_tcp_syn_cookie(cookie, iph->saddr, iph->daddr,
 					    th->source, th->dest, seq,
 					    jiffies / (HZ * 60),
@@ -268,6 +272,11 @@ struct sock *cookie_v4_check(struct sock *sk, struct sk_buff *skb,
 	if (!sysctl_tcp_syncookies || !th->ack)
 		goto out;
 
+	/* 验证cookie的合法性，必须同时符合： 
+		 * 1. 最近3s内有发生半连接队列溢出。 
+		 * 2. 通过cookie反算的t1和mssind是合法的。 
+		 */  
+
 	if (tcp_synq_no_recent_overflow(sk) ||
 	    (mss = cookie_check(skb, cookie)) == 0) {
 		NET_INC_STATS_BH(sock_net(sk), LINUX_MIB_SYNCOOKIESFAILED);
@@ -279,34 +288,37 @@ struct sock *cookie_v4_check(struct sock *sk, struct sk_buff *skb,
 	/* check for timestamp cookie support */
 	memset(&tcp_opt, 0, sizeof(tcp_opt));
 	tcp_parse_options(skb, &tcp_opt, 0);
-
+	
+	/* 如果有使用时间戳选项，则从ACK的tsecr中提取选项信息 */  
 	if (tcp_opt.saw_tstamp)
 		cookie_check_timestamp(&tcp_opt);
 
 	ret = NULL;
+	/* 从缓存块中分配一个request_sock实例，指定此实例的操作函数集为tcp_request_sock_ops */ 
 	req = inet_reqsk_alloc(&tcp_request_sock_ops); /* for safety */
 	if (!req)
 		goto out;
 
 	ireq = inet_rsk(req);
 	treq = tcp_rsk(req);
-	treq->rcv_isn		= ntohl(th->seq) - 1;
-	treq->snt_isn		= cookie;
-	req->mss		= mss;
-	ireq->loc_port		= th->dest;
-	ireq->rmt_port		= th->source;
-	ireq->loc_addr		= ip_hdr(skb)->daddr;
-	ireq->rmt_addr		= ip_hdr(skb)->saddr;
-	ireq->ecn_ok		= 0;
-	ireq->snd_wscale	= tcp_opt.snd_wscale;
-	ireq->rcv_wscale	= tcp_opt.rcv_wscale;
-	ireq->sack_ok		= tcp_opt.sack_ok;
-	ireq->wscale_ok		= tcp_opt.wscale_ok;
-	ireq->tstamp_ok		= tcp_opt.saw_tstamp;
-	req->ts_recent		= tcp_opt.saw_tstamp ? tcp_opt.rcv_tsval : 0;
+	treq->rcv_isn		= ntohl(th->seq) - 1; /* 客户端的初始序列号 */  
+	treq->snt_isn		= cookie; /* 本端的初始序列号 */  
+	req->mss		= mss; /* 客户端通告的MSS，通过解析cookie获得 */ 
+	ireq->loc_port		= th->dest; /* 本端端口 */  
+	ireq->rmt_port		= th->source; /* 客户端端口 */ 
+	ireq->loc_addr		= ip_hdr(skb)->daddr; /* 本端IP */ 
+	ireq->rmt_addr		= ip_hdr(skb)->saddr; /* 客户端IP */ 
+	ireq->ecn_ok		= 0;   /* ECN选项，通过TS编码获得 */ 
+	ireq->snd_wscale	= tcp_opt.snd_wscale; /* 客户端窗口扩大因子，通过TS编码获得 */   
+	ireq->rcv_wscale	= tcp_opt.rcv_wscale;  
+	ireq->sack_ok		= tcp_opt.sack_ok; /* SACK允许选项，通过TS编码获得 */ 
+	ireq->wscale_ok		= tcp_opt.wscale_ok; /* 窗口扩大选项，通过TS编码获得 */  
+	ireq->tstamp_ok		= tcp_opt.saw_tstamp;/* 时间戳选项，通过观察ACK段有无携带时间戳 */ 
+	req->ts_recent		= tcp_opt.saw_tstamp ? tcp_opt.rcv_tsval : 0; /* 本端下个发送段的时间戳回显值 */ 
 
 	/* We throwed the options of the initial SYN away, so we hope
 	 * the ACK carries the same options again (see RFC1122 4.2.3.8)
+	 * 通过ACK段，获取IP选项。 
 	 */
 	if (opt && opt->optlen) {
 		int opt_size = sizeof(struct ip_options_rcu) + opt->optlen;
@@ -317,20 +329,21 @@ struct sock *cookie_v4_check(struct sock *sk, struct sk_buff *skb,
 			ireq->opt = NULL;
 		}
 	}
-
+	   /* SELinux相关 */ 
 	if (security_inet_conn_request(sk, skb, req)) {
 		reqsk_free(req);
 		goto out;
 	}
 
-	req->expires	= 0UL;
-	req->retrans	= 0;
+	req->expires	= 0UL; /* SYNACK的超时时间 */  
+	req->retrans	= 0; /* SYNACK的重传次数 */  
 
 	/*
 	 * We need to lookup the route here to get at the correct
 	 * window size. We should better make sure that the window size
 	 * hasn't changed since we received the original syn, but I see
 	 * no easy way to do this.
+	  * 查找路由缓存。 
 	 */
 	{
 		struct flowi fl = { .nl_u = { .ip4_u =
@@ -353,13 +366,17 @@ struct sock *cookie_v4_check(struct sock *sk, struct sk_buff *skb,
 
 	/* Try to redo what tcp_v4_send_synack did. */
 	req->window_clamp = tp->window_clamp ? :dst_metric(&rt->u.dst, RTAX_WINDOW);
-
+	/* 获取接收窗口的初始值，窗口扩大因子和接收窗口的上限 */  
 	tcp_select_initial_window(tcp_full_space(sk), req->mss,
 				  &req->rcv_wnd, &req->window_clamp,
 				  ireq->wscale_ok, &rcv_wscale);
 
 	ireq->rcv_wscale  = rcv_wscale;
-
+	
+    /* 到了这里，三次握手基本完成。 
+     * 接下来为新的连接创建和初始化一个传输控制块，并把它和连接请求块关联起来。 
+     * 最后把该连接请求块移入全连接队列中，等待accept()。 
+     */  
 	ret = get_cookie_sock(sk, skb, req, &rt->u.dst);
 out:	return ret;
 }

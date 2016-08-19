@@ -97,6 +97,7 @@ static u32 cookie_hash(struct in6_addr *saddr, struct in6_addr *daddr,
 	return tmp[17];
 }
 
+/* 计算SYN Cookie的具体值 */  
 static __u32 secure_tcp_syn_cookie(struct in6_addr *saddr, struct in6_addr *daddr,
 				   __be16 sport, __be16 dport, __u32 sseq,
 				   __u32 count, __u32 data)

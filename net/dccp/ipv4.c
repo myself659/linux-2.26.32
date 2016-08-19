@@ -966,7 +966,7 @@ static const struct proto_ops inet_dccp_ops = {
 	.bind		   = inet_bind,
 	.connect	   = inet_stream_connect,
 	.socketpair	   = sock_no_socketpair,
-	.accept		   = inet_accept,
+	.accept		   = inet_accept,  /* inet socket accept Èë¿Ú */
 	.getname	   = inet_getname,
 	/* FIXME: work on tcp_poll to rename it to inet_csk_poll */
 	.poll		   = dccp_poll,
