@@ -377,7 +377,7 @@ unsigned int tcp_poll(struct file *file, struct socket *sock, poll_table *wait)
 	struct tcp_sock *tp = tcp_sk(sk);
 
 	sock_poll_wait(file, sk->sk_sleep, wait);
-	if (sk->sk_state == TCP_LISTEN)
+	if (sk->sk_state == TCP_LISTEN) // ÕìÌý×´Ì¬£¬½øÈëlisten poll£¬¼´¼ì²éÕìÌýsocketµÄaccpet¶ÓÁÐÊÇ·ñÎª¿Õ
 		return inet_csk_listen_poll(sk);
 
 	/* Socket is not locked. We are protected from async events
@@ -414,6 +414,7 @@ unsigned int tcp_poll(struct file *file, struct socket *sock, poll_table *wait)
 	 * NOTE. Check for TCP_CLOSE is added. The goal is to prevent
 	 * blocking on fresh not-connected or disconnected socket. --ANK
 	 */
+	 /* socket Óëtcp ×´Ì¬×ª»¯ pollÊÂ¼þ */
 	if (sk->sk_shutdown == SHUTDOWN_MASK || sk->sk_state == TCP_CLOSE)
 		mask |= POLLHUP;
 	if (sk->sk_shutdown & RCV_SHUTDOWN)
@@ -431,13 +432,23 @@ unsigned int tcp_poll(struct file *file, struct socket *sock, poll_table *wait)
 		/* Potential race condition. If read of tp below will
 		 * escape above sk->sk_state, we can be illegally awaken
 		 * in SYN_* states. */
+		 /*
+		 Î´´¦Àí±¨ÎÄ×Ö½ÚÊý³¬¹ýÁË½ÓÊÕÍ¨Öª½ø³Ì×îÐ¡Öµ£¬Âú×ã¿É¶ÁÌõ¼þ
+		 */
 		if (tp->rcv_nxt - tp->copied_seq >= target)
 			mask |= POLLIN | POLLRDNORM;
 
 		if (!(sk->sk_shutdown & SEND_SHUTDOWN)) {
+			/*  
+			sk->sk_sndbuf - sk->sk_wmem_queued >=   sk->sk_wmem_queued>>1 (¼òµ¥Àí½âÎª×î´óÖµ 0.5* sk->sk_wmem_queued)
+			Èç¹ûÎ´·¢ËÍ±¨ÎÄ³¬¹ýÁË66%£¬ÄÇÃ´¿Ï¶¨»á²»»á¼ÌÐøÉÏ±¨POLLOUTÊÂ¼þ
+			¶ÔÓ¦ÎÄÕÂÀïÃæhttps://blog.cloudflare.com/the-curious-case-of-slow-downloads/
+			*/
 			if (sk_stream_wspace(sk) >= sk_stream_min_wspace(sk)) {
 				mask |= POLLOUT | POLLWRNORM;
-			} else {  /* send SIGIO later */
+			} else { 
+				/* send SIGIO later */
+				/* ·¢ËÍSIGIO  */
 				set_bit(SOCK_ASYNC_NOSPACE,
 					&sk->sk_socket->flags);
 				set_bit(SOCK_NOSPACE, &sk->sk_socket->flags);
@@ -445,6 +456,9 @@ unsigned int tcp_poll(struct file *file, struct socket *sock, poll_table *wait)
 				/* Race breaker. If space is freed after
 				 * wspace test but before the flags are set,
 				 * IO signal will be lost.
+				 */
+				 /*
+				 *IO ÐÅºÅÔõÃ´¶ªÁËå ÉÏÃæ´úÂëÒÑ¾­ÉèÖÃ£¬ÔÚÄÄÀï´¦ÀíµÄ? ÀýÈçtcp_sendmsg
 				 */
 				if (sk_stream_wspace(sk) >= sk_stream_min_wspace(sk))
 					mask |= POLLOUT | POLLWRNORM;

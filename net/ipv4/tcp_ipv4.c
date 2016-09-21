@@ -2431,7 +2431,9 @@ int tcp4_gro_complete(struct sk_buff *skb)
 	return tcp_gro_complete(skb);
 }
 EXPORT_SYMBOL(tcp4_gro_complete);
-
+/*
+全局变量 
+*/
 struct proto tcp_prot = {
 	.name			= "TCP",
 	.owner			= THIS_MODULE,
