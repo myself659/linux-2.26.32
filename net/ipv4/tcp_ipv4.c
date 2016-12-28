@@ -454,7 +454,7 @@ void tcp_v4_err(struct sk_buff *icmp_skb, u32 info)
 		   an established socket here.
 		 */
 		WARN_ON(req->sk);
-
+		/* seq 检查 */
 		if (seq != tcp_rsk(req)->snt_isn) {
 			NET_INC_STATS_BH(net, LINUX_MIB_OUTOFWINDOWICMPS);
 			goto out;
@@ -1209,7 +1209,7 @@ static struct timewait_sock_ops tcp_timewait_sock_ops = {
 	.twsk_unique	= tcp_twsk_unique,
 	.twsk_destructor= tcp_twsk_destructor,
 };
-
+/* 处理首个syn，建立server端请求连接socket */
 int tcp_v4_conn_request(struct sock *sk, struct sk_buff *skb)
 {
 	struct inet_request_sock *ireq;
@@ -1233,6 +1233,7 @@ int tcp_v4_conn_request(struct sock *sk, struct sk_buff *skb)
 	 * limitations, they conserve resources and peer is
 	 * evidently real one.
 	 */
+	 /* 检查syn queue是否已满，即request queue是否已满 */
 	if (inet_csk_reqsk_queue_is_full(sk) && !isn) {
 #ifdef CONFIG_SYN_COOKIES
 		if (sysctl_tcp_syncookies) {
@@ -1247,9 +1248,10 @@ int tcp_v4_conn_request(struct sock *sk, struct sk_buff *skb)
 	 * clogging syn queue with openreqs with exponentially increasing
 	 * timeout.
 	 */
+	 /* 检查队列 */
 	if (sk_acceptq_is_full(sk) && inet_csk_reqsk_queue_young(sk) > 1)
 		goto drop;
-
+	/* 申请req socket */
 	req = inet_reqsk_alloc(&tcp_request_sock_ops);
 	if (!req)
 		goto drop;
@@ -1261,19 +1263,19 @@ int tcp_v4_conn_request(struct sock *sk, struct sk_buff *skb)
 	tcp_clear_options(&tmp_opt);
 	tmp_opt.mss_clamp = 536;
 	tmp_opt.user_mss  = tcp_sk(sk)->rx_opt.user_mss;
-
+	/* tcp option 解析 */
 	tcp_parse_options(skb, &tmp_opt, 0);
 
 	if (want_cookie && !tmp_opt.saw_tstamp)
 		tcp_clear_options(&tmp_opt);
 
 	tmp_opt.tstamp_ok = tmp_opt.saw_tstamp;
-
+	/* req socket init 相关 */
 	tcp_openreq_init(req, &tmp_opt, skb);
 
 	ireq = inet_rsk(req);
-	ireq->loc_addr = daddr;
-	ireq->rmt_addr = saddr;
+	ireq->loc_addr = daddr; /* 从报文取出目的地址作为本机地址 */
+	ireq->rmt_addr = saddr; /* 从报文取出的源地址为对端地址 */
 	ireq->no_srccheck = inet_sk(sk)->transparent;
 	ireq->opt = tcp_v4_save_options(sk, skb);
 
@@ -1330,14 +1332,14 @@ int tcp_v4_conn_request(struct sock *sk, struct sk_buff *skb)
 				       &saddr, ntohs(tcp_hdr(skb)->source));
 			goto drop_and_release;
 		}
-
+		/* 生成isn  Initial Sequence Number  */
 		isn = tcp_v4_init_sequence(skb);
 	}
 	tcp_rsk(req)->snt_isn = isn;
-
+	/* 发送synack */
 	if (__tcp_v4_send_synack(sk, req, dst) || want_cookie)
 		goto drop_and_free;
-
+	/* 将该request_sock添加到父socket的icsk_accept_queue中的listen_opt上 */
 	inet_csk_reqsk_queue_hash_add(sk, req, TCP_TIMEOUT_INIT);
 	return 0;
 
@@ -1434,7 +1436,11 @@ exit:
 	dst_release(dst);
 	return NULL;
 }
+/*
 
+处理连接请求
+
+*/
 static struct sock *tcp_v4_hnd_req(struct sock *sk, struct sk_buff *skb)
 {
 	struct tcphdr *th = tcp_hdr(skb);
@@ -1496,6 +1502,9 @@ static __sum16 tcp_v4_checksum_init(struct sk_buff *skb)
  * This is because we cannot sleep with the original spinlock
  * held.
  */
+ /*
+tcp处理 
+ */
 int tcp_v4_do_rcv(struct sock *sk, struct sk_buff *skb)
 {
 	struct sock *rsk;
@@ -1506,6 +1515,7 @@ int tcp_v4_do_rcv(struct sock *sk, struct sk_buff *skb)
 	 *  o We're expecting an MD5'd packet and this is no MD5 tcp option
 	 *  o There is an MD5 option and we're not expecting one
 	 */
+	 /* md5 检查 */
 	if (tcp_v4_inbound_md5_hash(sk, skb))
 		goto discard;
 #endif
@@ -1523,7 +1533,7 @@ int tcp_v4_do_rcv(struct sock *sk, struct sk_buff *skb)
 	if (skb->len < tcp_hdrlen(skb) || tcp_checksum_complete(skb))
 		goto csum_err;
 
-	if (sk->sk_state == TCP_LISTEN) {
+	if (sk->sk_state == TCP_LISTEN) { /* 侦听socket */ 
 		struct sock *nsk = tcp_v4_hnd_req(sk, skb);
 		if (!nsk)
 			goto discard;
@@ -1820,11 +1830,13 @@ static int tcp_v4_init_sock(struct sock *sk)
 	 * algorithms that we must have the following bandaid to talk
 	 * efficiently to them.  -DaveM
 	 */
+	 /* 发送窗口 */
 	tp->snd_cwnd = 2;
 
 	/* See draft-stevens-tcpca-spec-01 for discussion of the
 	 * initialization of these values.
 	 */
+	 /* 慢启动门限  */
 	tp->snd_ssthresh = TCP_INFINITE_SSTHRESH;
 	tp->snd_cwnd_clamp = ~0;
 	tp->mss_cache = 536;
@@ -1836,7 +1848,7 @@ static int tcp_v4_init_sock(struct sock *sk)
 
 	sk->sk_write_space = sk_stream_write_space;
 	sock_set_flag(sk, SOCK_USE_WRITE_QUEUE);
-
+	/* 设置socket 操作函数 */
 	icsk->icsk_af_ops = &ipv4_specific;
 	icsk->icsk_sync_mss = tcp_sync_mss;
 #ifdef CONFIG_TCP_MD5SIG
@@ -2432,7 +2444,8 @@ int tcp4_gro_complete(struct sk_buff *skb)
 }
 EXPORT_SYMBOL(tcp4_gro_complete);
 /*
-全局变量 
+tcp协议全局变量 
+socket(应用层)与 tcp(协议)之间的中间层
 */
 struct proto tcp_prot = {
 	.name			= "TCP",
@@ -2447,8 +2460,8 @@ struct proto tcp_prot = {
 	.shutdown		= tcp_shutdown,
 	.setsockopt		= tcp_setsockopt,
 	.getsockopt		= tcp_getsockopt,
-	.recvmsg		= tcp_recvmsg,
-	.backlog_rcv		= tcp_v4_do_rcv,
+	.recvmsg		= tcp_recvmsg, /* 用户从tcp缓冲区获取 */
+	.backlog_rcv		= tcp_v4_do_rcv, /* ip层上送tcp */
 	.hash			= inet_hash,
 	.unhash			= inet_unhash,
 	.get_port		= inet_csk_get_port,

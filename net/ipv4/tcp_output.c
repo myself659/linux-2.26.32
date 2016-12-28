@@ -661,8 +661,8 @@ static int tcp_transmit_skb(struct sock *sk, struct sk_buff *skb, int clone_it,
 
 	/* Build TCP header and checksum it. */
 	th = tcp_hdr(skb);
-	th->source		= inet->sport;
-	th->dest		= inet->dport;
+	th->source		= inet->sport;   /* 源端口 */
+	th->dest		= inet->dport;   /* 目的端口 */
 	th->seq			= htonl(tcb->seq);
 	th->ack_seq		= htonl(tp->rcv_nxt);
 	*(((__be16 *)th) + 6)	= htons(((tcp_header_size >> 2) << 12) |
@@ -2379,6 +2379,7 @@ static void tcp_connect_init(struct sock *sk)
 }
 
 /* Build a SYN and send it off. */
+/* 构造syn并发送 */
 int tcp_connect(struct sock *sk)
 {
 	struct tcp_sock *tp = tcp_sk(sk);

@@ -366,7 +366,7 @@ void __inet_hash_nolisten(struct sock *sk)
 	sock_prot_inuse_add(sock_net(sk), sk->sk_prot, 1);
 }
 EXPORT_SYMBOL_GPL(__inet_hash_nolisten);
-
+/* ½«sock¼ÓÈëinet_hash */
 static void __inet_hash(struct sock *sk)
 {
 	struct inet_hashinfo *hashinfo = sk->sk_prot->h.hashinfo;

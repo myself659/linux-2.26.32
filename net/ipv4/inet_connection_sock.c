@@ -284,12 +284,12 @@ struct sock *inet_csk_accept(struct sock *sk, int flags, int *err)
 		error = -EAGAIN;
 		if (!timeo)
 			goto out_err;
-
+		/*  阻塞等待连接 */
 		error = inet_csk_wait_for_connect(sk, timeo);
 		if (error)
 			goto out_err;
 	}
-
+	/* 从accept队列中获取已建立连接 */
 	newsk = reqsk_queue_get_child(&icsk->icsk_accept_queue, sk);
 	WARN_ON(newsk->sk_state == TCP_SYN_RECV);
 out:
@@ -644,10 +644,12 @@ int inet_csk_listen_start(struct sock *sk, const int nr_table_entries)
 	 * after validation is complete.
 	 */
 	sk->sk_state = TCP_LISTEN;
+	/*  以tcp为例，从tcp_prot中调用get_port方法 */
 	if (!sk->sk_prot->get_port(sk, inet->num)) {
 		inet->sport = htons(inet->num);
 
 		sk_dst_reset(sk);
+		/* 加入 listen hash */
 		sk->sk_prot->hash(sk);
 
 		return 0;

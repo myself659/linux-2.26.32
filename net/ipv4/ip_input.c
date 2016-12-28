@@ -209,6 +209,7 @@ static int ip_local_deliver_finish(struct sk_buff *skb)
 		
 		/* 根据协议类型进行分发处理 */
 		hash = protocol & (MAX_INET_PROTOS - 1);
+		/* 获取协议处理 */
 		ipprot = rcu_dereference(inet_protos[hash]);
 		if (ipprot != NULL) {
 			int ret;

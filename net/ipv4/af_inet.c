@@ -175,7 +175,7 @@ static int inet_autobind(struct sock *sk)
 	lock_sock(sk);
 	inet = inet_sk(sk);
 	if (!inet->num) {
-		if (sk->sk_prot->get_port(sk, 0)) {
+		if (sk->sk_prot->get_port(sk, 0)) { /* 分配端口 */
 			release_sock(sk);
 			return -EAGAIN;
 		}
@@ -276,13 +276,16 @@ static int inet_create(struct net *net, struct socket *sock, int protocol)
 	if (unlikely(!inet_ehash_secret))
 		if (sock->type != SOCK_RAW && sock->type != SOCK_DGRAM)
 			build_ehash_secret();
-
+	/* 设置为未连接状态 */
 	sock->state = SS_UNCONNECTED;
 
 	/* Look for the requested type/protocol pair. */
 lookup_protocol:
 	err = -ESOCKTNOSUPPORT;
 	rcu_read_lock();
+	/* 
+	
+	*/
 	list_for_each_entry_rcu(answer, &inetsw[sock->type], list) {
 
 		err = 0;
@@ -441,7 +444,7 @@ EXPORT_SYMBOL(inet_release);
 /* It is off by default, see below. */
 int sysctl_ip_nonlocal_bind __read_mostly;
 EXPORT_SYMBOL(sysctl_ip_nonlocal_bind);
-
+/* 绑定端口 */
 int inet_bind(struct socket *sock, struct sockaddr *uaddr, int addr_len)
 {
 	struct sockaddr_in *addr = (struct sockaddr_in *)uaddr;
@@ -590,7 +593,7 @@ int inet_stream_connect(struct socket *sock, struct sockaddr *uaddr,
 	case SS_CONNECTED:
 		err = -EISCONN;
 		goto out;
-	case SS_CONNECTING:
+	case SS_CONNECTING: 
 		err = -EALREADY;
 		/* Fall out of switch with err, set for this state */
 		break;
@@ -598,7 +601,7 @@ int inet_stream_connect(struct socket *sock, struct sockaddr *uaddr,
 		err = -EISCONN;
 		if (sk->sk_state != TCP_CLOSE)
 			goto out;
-
+		/* 以tcp为例，调用tcp_v4_connect */
 		err = sk->sk_prot->connect(sk, uaddr, addr_len);
 		if (err < 0)
 			goto out;
@@ -659,6 +662,7 @@ int inet_accept(struct socket *sock, struct socket *newsock, int flags)
 {
 	struct sock *sk1 = sock->sk;
 	int err = -EINVAL;
+	/* 以tcp为例，inet_csk_accept */
 	struct sock *sk2 = sk1->sk_prot->accept(sk1, flags, &err);
 
 	if (!sk2)
@@ -670,7 +674,7 @@ int inet_accept(struct socket *sock, struct socket *newsock, int flags)
 		  (TCPF_ESTABLISHED | TCPF_CLOSE_WAIT | TCPF_CLOSE)));
 
 	sock_graft(sk2, newsock);
-
+	/* tcp建立并不把连接设置SS_CONNECTED，用户态系统调用accept才将socket状态设置为连接状态  */
 	newsock->state = SS_CONNECTED;
 	err = 0;
 	release_sock(sk2);
@@ -710,7 +714,7 @@ int inet_getname(struct socket *sock, struct sockaddr *uaddr,
 	return 0;
 }
 EXPORT_SYMBOL(inet_getname);
-
+/* 发送报文才需要 */
 int inet_sendmsg(struct kiocb *iocb, struct socket *sock, struct msghdr *msg,
 		 size_t size)
 {
@@ -943,6 +947,9 @@ static struct net_proto_family inet_family_ops = {
 /* Upon startup we insert all the elements in inetsw_array[] into
  * the linked list inetsw.
  */
+ /* 
+inet协议簇协议开关表 
+ */
 static struct inet_protosw inetsw_array[] =
 {
 	{
@@ -964,18 +971,18 @@ static struct inet_protosw inetsw_array[] =
 		.capability = -1,
 		.no_check =   UDP_CSUM_DEFAULT,
 		.flags =      INET_PROTOSW_PERMANENT,
-       },
+     },
 
 
-       {
-	       .type =       SOCK_RAW,
-	       .protocol =   IPPROTO_IP,	/* wild card */
-	       .prot =       &raw_prot,
-	       .ops =        &inet_sockraw_ops,
-	       .capability = CAP_NET_RAW,
-	       .no_check =   UDP_CSUM_DEFAULT,
-	       .flags =      INET_PROTOSW_REUSE,
-       }
+   {
+       .type =       SOCK_RAW,
+       .protocol =   IPPROTO_IP,	/* wild card */
+       .prot =       &raw_prot,
+       .ops =        &inet_sockraw_ops,
+       .capability = CAP_NET_RAW,
+       .no_check =   UDP_CSUM_DEFAULT,
+       .flags =      INET_PROTOSW_REUSE,
+   }
 };
 
 #define INETSW_ARRAY_LEN ARRAY_SIZE(inetsw_array)
@@ -1548,6 +1555,9 @@ static struct packet_type ip_packet_type __read_mostly = {
 	.gro_complete = inet_gro_complete,
 };
 
+/*
+inet 协议簇初始化 
+*/
 static int __init inet_init(void)
 {
 	struct sk_buff *dummy_skb;

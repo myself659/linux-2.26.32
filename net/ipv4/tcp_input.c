@@ -5636,6 +5636,9 @@ int tcp_rcv_state_process(struct sock *sk, struct sk_buff *skb,
 		goto discard;
 
 	case TCP_LISTEN:
+		/* 第一个sync包会到这里 */
+         
+        /* 非法的TCP包，LISTEN状态只处理sync包 */
 		if (th->ack)
 			return 1;
 
@@ -5645,6 +5648,7 @@ int tcp_rcv_state_process(struct sock *sk, struct sk_buff *skb,
 		if (th->syn) {
 			if (th->fin)
 				goto discard;
+				/* 以tcp为例调用tcp_v4_conn_request  */
 			if (icsk->icsk_af_ops->conn_request(sk, skb) < 0)
 				return 1;
 
@@ -5695,6 +5699,7 @@ int tcp_rcv_state_process(struct sock *sk, struct sk_buff *skb,
 			if (acceptable) {
 				tp->copied_seq = tp->rcv_nxt;
 				smp_mb();
+				/* 完成了三次握手，sk状态设置为TCP_ESTABLISHED */
 				tcp_set_state(sk, TCP_ESTABLISHED);
 				sk->sk_state_change(sk);
 
@@ -5703,11 +5708,13 @@ int tcp_rcv_state_process(struct sock *sk, struct sk_buff *skb,
 				 * are not waked up, because sk->sk_sleep ==
 				 * NULL and sk->sk_socket == NULL.
 				 */
+				 /* 唤醒进程 */
 				if (sk->sk_socket)
 					sk_wake_async(sk,
 						      SOCK_WAKE_IO, POLL_OUT);
 
 				tp->snd_una = TCP_SKB_CB(skb)->ack_seq;
+				/* 设置发送窗口  窗口值 与放大因子 */
 				tp->snd_wnd = ntohs(th->window) <<
 					      tp->rx_opt.snd_wscale;
 				tcp_init_wl(tp, TCP_SKB_CB(skb)->seq);
@@ -5739,6 +5746,7 @@ int tcp_rcv_state_process(struct sock *sk, struct sk_buff *skb,
 				tcp_initialize_rcv_mss(sk);
 				tcp_init_buffer_space(sk);
 				tcp_fast_path_on(tp);
+				// reqsock 如何摘除 
 			} else {
 				return 1;
 			}
