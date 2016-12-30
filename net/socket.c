@@ -453,7 +453,10 @@ struct socket *sockfd_lookup(int fd, int *err)
 		fput(file);
 	return sock;
 }
+/*
 
+fd --> struct file --->  struct socket  
+*/
 static struct socket *sockfd_lookup_light(int fd, int *err, int *fput_needed)
 {
 	struct file *file;
@@ -1220,7 +1223,7 @@ static int __sock_create(struct net *net, int family, int type, int protocol,
 
 	/* Now protected by module ref count */
 	rcu_read_unlock();
-
+	/* 创建socket 例如调用inet_create */ 	
 	err = pf->create(net, sock, protocol);
 	if (err < 0)
 		goto out_module_put;
@@ -1273,7 +1276,7 @@ int  sys_socket(int family, int type, int protocol)
 
 	
 }
-
+/* 对应系统调用socket实现  */
 SYSCALL_DEFINE3(socket, int, family, int, type, int, protocol)
 {
 	int retval;
@@ -1444,16 +1447,27 @@ SYSCALL_DEFINE3(bind, int, fd, struct sockaddr __user *, umyaddr, int, addrlen)
  *	necessary for a listen, and if that works, we mark the socket as
  *	ready for listening.
  */
+ /* 对应listen系统调用*/
 
 SYSCALL_DEFINE2(listen, int, fd, int, backlog)
 {
 	struct socket *sock;
 	int err, fput_needed;
 	int somaxconn;
-
+	/* 根据fd查找到sock */
 	sock = sockfd_lookup_light(fd, &err, &fput_needed);
 	if (sock) {
+		/*
+		/etc/sysctl.conf
+		[root@localhost src]#  sysctl -a | grep somaxconn  
+		net.core.somaxconn = 128
+
+		定义了系统中每一个端口最大的监听队列的长度，这是个全局的参数。
+		*/
 		somaxconn = sock_net(sock->sk)->core.sysctl_somaxconn;
+		/*
+		不能超过 
+		*/
 		if ((unsigned)backlog > somaxconn)
 			backlog = somaxconn;
 
@@ -1577,14 +1591,14 @@ SYSCALL_DEFINE3(accept, int, fd, struct sockaddr __user *, upeer_sockaddr,
  *	other SEQPACKET protocols that take time to connect() as it doesn't
  *	include the -EINPROGRESS status for such sockets.
  */
-
+/* connect 系统调用实现 */
 SYSCALL_DEFINE3(connect, int, fd, struct sockaddr __user *, uservaddr,
 		int, addrlen)
 {
 	struct socket *sock;
 	struct sockaddr_storage address;
 	int err, fput_needed;
-
+	/* 通过fd查找到sock */
 	sock = sockfd_lookup_light(fd, &err, &fput_needed);
 	if (!sock)
 		goto out;
@@ -1596,7 +1610,7 @@ SYSCALL_DEFINE3(connect, int, fd, struct sockaddr __user *, uservaddr,
 	    security_socket_connect(sock, (struct sockaddr *)&address, addrlen);
 	if (err)
 		goto out_put;
-
+	/*  对于tcp连接调用inet_stream_connect  */ 
 	err = sock->ops->connect(sock, (struct sockaddr *)&address, addrlen,
 				 sock->file->f_flags);
 out_put:
@@ -1708,6 +1722,7 @@ SYSCALL_DEFINE6(sendto, int, fd, void __user *, buff, size_t, len,
 	if (sock->file->f_flags & O_NONBLOCK)
 		flags |= MSG_DONTWAIT;
 	msg.msg_flags = flags;
+	/* 真正发送操作 */
 	err = sock_sendmsg(sock, &msg, len);
 
 out_put:
@@ -2158,7 +2173,7 @@ SYSCALL_DEFINE2(socketcall, int, call, unsigned long __user *, args)
 	case SYS_BIND:
 		err = sys_bind(a0, (struct sockaddr __user *)a1, a[2]);
 		break;
-	case SYS_CONNECT:
+	case SYS_CONNECT: /* connect系统调用 */
 		err = sys_connect(a0, (struct sockaddr __user *)a1, a[2]);
 		break;
 	case SYS_LISTEN:
@@ -2181,14 +2196,14 @@ SYSCALL_DEFINE2(socketcall, int, call, unsigned long __user *, args)
 	case SYS_SOCKETPAIR:
 		err = sys_socketpair(a0, a1, a[2], (int __user *)a[3]);
 		break;
-	case SYS_SEND:
+	case SYS_SEND: 　/* 对应send */
 		err = sys_send(a0, (void __user *)a1, a[2], a[3]);
 		break;
 	case SYS_SENDTO:
 		err = sys_sendto(a0, (void __user *)a1, a[2], a[3],
 				 (struct sockaddr __user *)a[4], a[5]);
 		break;
-	case SYS_RECV:
+	case SYS_RECV: /* 对应recv */
 		err = sys_recv(a0, (void __user *)a1, a[2], a[3]);
 		break;
 	case SYS_RECVFROM:

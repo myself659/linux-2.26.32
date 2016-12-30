@@ -1094,7 +1094,7 @@ unsigned int tcp_current_mss(struct sock *sk)
 static void tcp_cwnd_validate(struct sock *sk)
 {
 	struct tcp_sock *tp = tcp_sk(sk);
-
+	/* 如果发送的报文大于发送发送窗口 */
 	if (tp->packets_out >= tp->snd_cwnd) {
 		/* Network is feed fully. */
 		tp->snd_cwnd_used = 0;
@@ -1102,6 +1102,7 @@ static void tcp_cwnd_validate(struct sock *sk)
 	} else {
 		/* Network starves. */
 		if (tp->packets_out > tp->snd_cwnd_used)
+			// 更新发送窗口 
 			tp->snd_cwnd_used = tp->packets_out;
 
 		if (sysctl_tcp_slow_start_after_idle &&
@@ -1154,9 +1155,10 @@ static inline unsigned int tcp_cwnd_test(struct tcp_sock *tp,
 	if ((TCP_SKB_CB(skb)->flags & TCPCB_FLAG_FIN) &&
 	    tcp_skb_pcount(skb) == 1)
 		return 1;
-
+	/* 重传对发送窗口有没有影响，影响发送窗口的大小(变小) */
 	in_flight = tcp_packets_in_flight(tp);
 	cwnd = tp->snd_cwnd;
+	/* 如果拥塞窗口允许，需要返回依据拥塞窗口的大小，还能发送多少字节的数据 */
 	if (in_flight < cwnd)
 		return (cwnd - in_flight);
 
@@ -1214,16 +1216,18 @@ static inline int tcp_nagle_test(struct tcp_sock *tp, struct sk_buff *skb,
 	 * This is implemented in the callers, where they modify the 'nonagle'
 	 * argument based upon the location of SKB in the send queue.
 	 */
+	 /* nonagle标志位设置了，返回1表示允许这个分组发送出去 */
 	if (nonagle & TCP_NAGLE_PUSH)
 		return 1;
 
 	/* Don't use the nagle rule for urgent data (or for the final FIN).
 	 * Nagle can be ignored during F-RTO too (see RFC4138).
 	 */
+	 /* 如果这个分组包含了四次握手关闭连接的FIN包，也可以发送出去 */
 	if (tcp_urg_mode(tp) || (tp->frto_counter == 2) ||
 	    (TCP_SKB_CB(skb)->flags & TCPCB_FLAG_FIN))
 		return 1;
-
+	/*Nagle算法检查 */
 	if (!tcp_nagle_check(tp, skb, cur_mss, nonagle))
 		return 1;
 
@@ -1231,9 +1235,11 @@ static inline int tcp_nagle_test(struct tcp_sock *tp, struct sk_buff *skb,
 }
 
 /* Does at least the first segment of SKB fit into the send window? */
+/* 检查这一次要发送的报文最大序号是否超出了发送滑动窗口大小 */
 static inline int tcp_snd_wnd_test(struct tcp_sock *tp, struct sk_buff *skb,
 				   unsigned int cur_mss)
-{
+{	
+	// 获取待发送的最大序号
 	u32 end_seq = TCP_SKB_CB(skb)->end_seq;
 
 	if (skb->len > cur_mss)
@@ -1574,7 +1580,7 @@ static int tcp_write_xmit(struct sock *sk, unsigned int mss_now, int nonagle,
 
 		cwnd_quota = tcp_cwnd_test(tp, skb);
 		if (!cwnd_quota)
-			break;
+			break; /* 没有可用发送窗口，跳出循环 */
 
 		if (unlikely(!tcp_snd_wnd_test(tp, skb, mss_now)))
 			break;

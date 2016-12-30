@@ -56,23 +56,30 @@ int sk_stream_wait_connect(struct sock *sk, long *timeo_p)
 	int done;
 
 	do {
+		/* 检查err */
 		int err = sock_error(sk);
 		if (err)
 			return err;
+			/* 如果不是处于TCP_SYN_SENT TCP_SYN_RECV状态，返回EPIPE  这是为什么向一个close发送报文返回epipe的原因  */
 		if ((1 << sk->sk_state) & ~(TCPF_SYN_SENT | TCPF_SYN_RECV))
 			return -EPIPE;
-		if (!*timeo_p)
+		if (!*timeo_p) /* 如果发送超时间为0，立即返回EAGAIN  如果连接未成功建立，向一个socket 发送，会立即返回错误 */
 			return -EAGAIN;
+			/* 当前进程有信号待处理,例如中断，立即返回   */
 		if (signal_pending(tsk))
 			return sock_intr_errno(*timeo_p);
-
+		/*
+		准备进入TASK_INTERRUPTIBLE状态
+		*/
 		prepare_to_wait(sk->sk_sleep, &wait, TASK_INTERRUPTIBLE);
 		sk->sk_write_pending++;
 		done = sk_wait_event(sk, timeo_p,
 				     !sk->sk_err &&
 				     !((1 << sk->sk_state) &
 				       ~(TCPF_ESTABLISHED | TCPF_CLOSE_WAIT)));
+		/* 结束等待 */		       
 		finish_wait(sk->sk_sleep, &wait);
+		
 		sk->sk_write_pending--;
 	} while (!done);
 	return 0;

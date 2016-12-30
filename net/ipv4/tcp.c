@@ -748,12 +748,15 @@ static unsigned int tcp_xmit_size_goal(struct sock *sk, u32 mss_now,
 
 	return max(xmit_size_goal, mss_now);
 }
-
+/*
+获取tcp 发送mss 
+*/
 static int tcp_send_mss(struct sock *sk, int *size_goal, int flags)
 {
 	int mss_now;
 
 	mss_now = tcp_current_mss(sk);
+	/* 这一部分后面再分析 */
 	*size_goal = tcp_xmit_size_goal(sk, mss_now, !(flags & MSG_OOB));
 
 	return mss_now;
@@ -912,7 +915,7 @@ static inline int select_size(struct sock *sk)
 
 	return tmp;
 }
-
+/* tcp发送报文 */
 int tcp_sendmsg(struct kiocb *iocb, struct socket *sock, struct msghdr *msg,
 		size_t size)
 {
@@ -924,29 +927,32 @@ int tcp_sendmsg(struct kiocb *iocb, struct socket *sock, struct msghdr *msg,
 	int mss_now, size_goal;
 	int err, copied;
 	long timeo;
-
+	
+	/* 加锁 */
 	lock_sock(sk);
 	TCP_CHECK_TIMER(sk);
-
+	/* 获取发送超时时间,非阻塞模式不等待 */
 	flags = msg->msg_flags;
 	timeo = sock_sndtimeo(sk, flags & MSG_DONTWAIT);
 
 	/* Wait for a connection to finish. */
+	/* 如果处于非连接状态，等待连接处理  */
 	if ((1 << sk->sk_state) & ~(TCPF_ESTABLISHED | TCPF_CLOSE_WAIT))
 		if ((err = sk_stream_wait_connect(sk, &timeo)) != 0)
 			goto out_err;
 
 	/* This should be in poll */
 	clear_bit(SOCK_ASYNC_NOSPACE, &sk->sk_socket->flags);
-
+	
 	mss_now = tcp_send_mss(sk, &size_goal, flags);
 
 	/* Ok commence sending. */
-	iovlen = msg->msg_iovlen;
+	iovlen = msg->msg_iovlen; /* 本次send数据长度 */
 	iov = msg->msg_iov;
 	copied = 0;
 
 	err = -EPIPE;
+	/* 检查错误 或检查是否处于SEND_SHUTDOWN状态 */
 	if (sk->sk_err || (sk->sk_shutdown & SEND_SHUTDOWN))
 		goto out_err;
 
@@ -1388,7 +1394,10 @@ int tcp_recvmsg(struct kiocb *iocb, struct sock *sk, struct msghdr *msg,
 	struct sk_buff *skb;
 	u32 urg_hole = 0;
 	
-	/* lock sock 加锁计数置为1  */
+	/* 
+	lock sock 加锁计数置为1 
+	锁住socket，防止多进程并发访问TCP连接，告知软中断目前socket在进程上下文中
+	*/
 	lock_sock(sk);
 
 	TCP_CHECK_TIMER(sk);
@@ -1396,19 +1405,29 @@ int tcp_recvmsg(struct kiocb *iocb, struct sock *sk, struct msghdr *msg,
 	err = -ENOTCONN;
 	if (sk->sk_state == TCP_LISTEN)
 		goto out;
-
+	/* 获取接收超时时间，非阻塞为0 */
 	timeo = sock_rcvtimeo(sk, nonblock);
 
 	/* Urgent data needs to be handled specially. */
-	if (flags & MSG_OOB)
+	/* 带外数据处理 */
+	if (flags & MSG_OOB) 
 		goto recv_urg;
-
+	/* 获取下一个要拷贝的字节序号 */
 	seq = &tp->copied_seq;
+	/* 
+	PEEK 只获取数据，不改变偏移量 
+	当flags参数有MSG_PEEK标志位时，意味着这次拷贝的内容，当再次读取socket时（比如另一个进程）还能再次读到
+	所以不会更新copied_seq，当然，下面会看到也不会删除报文，不会从receive队列中移除报文
+	*/
 	if (flags & MSG_PEEK) {
+		
 		peek_seq = tp->copied_seq;
 		seq = &peek_seq;
 	}
-
+	/*
+	获取SO_RCVLOWAT最低接收阀值，当然，target实际上是用户态内存大小len和SO_RCVLOWAT的最小值
+	注意：flags参数中若携带MSG_WAITALL标志位，则意味着必须等到读取到len长度的消息才能返回，此时target只能是len
+	*/
 	target = sock_rcvlowat(sk, flags & MSG_WAITALL, len);
 
 #ifdef CONFIG_NET_DMA
@@ -1447,7 +1466,7 @@ int tcp_recvmsg(struct kiocb *iocb, struct sock *sk, struct msghdr *msg,
 		}
 
 		/* Next get a buffer. */
-
+		
 		skb_queue_walk(&sk->sk_receive_queue, skb) {
 			/* Now that we have two receive queues this
 			 * shouldn't happen.
@@ -1519,13 +1538,17 @@ int tcp_recvmsg(struct kiocb *iocb, struct sock *sk, struct msghdr *msg,
 		}
 
 		tcp_cleanup_rbuf(sk, copied);
-
+		/* 
+		未打开低延迟,同一个读线程
+		*/
 		if (!sysctl_tcp_low_latency && tp->ucopy.task == user_recv) {
 			/* Install new reader */
 			if (!user_recv && !(flags & (MSG_TRUNC | MSG_PEEK))) {
+				/* 没有读线程且标注为(MSG_TRUNC | MSG_PEEK) */
 				user_recv = current;
 				tp->ucopy.task = user_recv;
 				tp->ucopy.iov = msg->msg_iov;
+				
 			}
 
 			tp->ucopy.len = len;
@@ -1559,6 +1582,7 @@ int tcp_recvmsg(struct kiocb *iocb, struct sock *sk, struct msghdr *msg,
 			 * is not empty. It is more elegant, but eats cycles,
 			 * unfortunately.
 			 */
+			 /* prequeue不为空，先处理prequeue队列 为什么要先处理prequeue队列呢  */
 			if (!skb_queue_empty(&tp->ucopy.prequeue))
 				goto do_prequeue;
 
@@ -1761,6 +1785,7 @@ skip_copy:
 
 out:
 	TCP_CHECK_TIMER(sk);
+	/* 释放socket时，还会检查、处理backlog队列中的报文 */
 	release_sock(sk);
 	return err;
 
@@ -2091,6 +2116,9 @@ int tcp_disconnect(struct sock *sk, int flags)
 
 /*
  *	Socket option code for TCP.
+ */
+ /*
+TCP选项 
  */
 static int do_tcp_setsockopt(struct sock *sk, int level,
 		int optname, char __user *optval, unsigned int optlen)

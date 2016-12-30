@@ -4303,7 +4303,7 @@ static void tcp_data_queue(struct sock *sk, struct sk_buff *skb)
 	struct tcphdr *th = tcp_hdr(skb);
 	struct tcp_sock *tp = tcp_sk(sk);
 	int eaten = -1;
-
+	/* 空报文 */
 	if (TCP_SKB_CB(skb)->seq == TCP_SKB_CB(skb)->end_seq)
 		goto drop;
 
@@ -4317,11 +4317,13 @@ static void tcp_data_queue(struct sock *sk, struct sk_buff *skb)
 	 *  Packets in sequence go to the receive queue.
 	 *  Out of sequence packets to the out_of_order_queue.
 	 */
+	 /* 如果报文seq就是当前准备接收的seq */
 	if (TCP_SKB_CB(skb)->seq == tp->rcv_nxt) {
 		if (tcp_receive_window(tp) == 0)
-			goto out_of_window;
+			goto out_of_window; /* 超出滑动窗口 */
 
 		/* Ok. In sequence. In window. */
+		/* 如果有一个进程正在读取socket，且正准备要拷贝的序号就是当前报文的seq序号 */
 		if (tp->ucopy.task == current &&
 		    tp->copied_seq == tp->rcv_nxt && tp->ucopy.len &&
 		    sock_owned_by_user(sk) && !tp->urg_data) {
@@ -4331,6 +4333,7 @@ static void tcp_data_queue(struct sock *sk, struct sk_buff *skb)
 			__set_current_state(TASK_RUNNING);
 
 			local_bh_enable();
+			/* 将报文内容拷贝到用户态内存中 */
 			if (!skb_copy_datagram_iovec(skb, 0, tp->ucopy.iov, chunk)) {
 				tp->ucopy.len -= chunk;
 				tp->copied_seq += chunk;
@@ -4339,7 +4342,7 @@ static void tcp_data_queue(struct sock *sk, struct sk_buff *skb)
 			}
 			local_bh_disable();
 		}
-
+		/* 如果没有能够直接拷贝到用户内存中，那么，插入receive队列 */
 		if (eaten <= 0) {
 queue_and_out:
 			if (eaten < 0 &&
@@ -4349,12 +4352,13 @@ queue_and_out:
 			skb_set_owner_r(skb, sk);
 			__skb_queue_tail(&sk->sk_receive_queue, skb);
 		}
+		/* 更新待接收序号 */
 		tp->rcv_nxt = TCP_SKB_CB(skb)->end_seq;
 		if (skb->len)
 			tcp_event_data_recv(sk, skb);
 		if (th->fin)
 			tcp_fin(skb, sk, th);
-
+		/* 如果out_of_order_queue 不为空，准备处理 */
 		if (!skb_queue_empty(&tp->out_of_order_queue)) {
 			tcp_ofo_queue(sk);
 
@@ -4377,6 +4381,7 @@ queue_and_out:
 		return;
 	}
 
+	/* 出现重传包 */
 	if (!after(TCP_SKB_CB(skb)->end_seq, tp->rcv_nxt)) {
 		/* A retransmit, 2nd most common case.  Force an immediate ack. */
 		NET_INC_STATS_BH(sock_net(sk), LINUX_MIB_DELAYEDACKLOST);
