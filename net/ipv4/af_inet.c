@@ -435,6 +435,7 @@ int inet_release(struct socket *sock)
 		    !(current->flags & PF_EXITING))
 			timeout = sk->sk_lingertime;
 		sock->sk = NULL;
+		/* 以tcp为例，对应函数为tcp_close */
 		sk->sk_prot->close(sk, timeout);
 	}
 	return 0;
@@ -1449,7 +1450,7 @@ static const struct net_protocol igmp_protocol = {
 	.netns_ok =	1,
 };
 #endif
-
+/* ip层按协议类型 分发到传输协议层 */
 static const struct net_protocol tcp_protocol = {
 	.handler =	tcp_v4_rcv,
 	.err_handler =	tcp_v4_err,

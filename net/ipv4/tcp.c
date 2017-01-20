@@ -1258,7 +1258,9 @@ void tcp_cleanup_rbuf(struct sock *sk, int copied)
 	if (time_to_ack)
 		tcp_send_ack(sk);
 }
-
+/* 
+将prequeue队列中报文加入backlog队列  
+*/
 static void tcp_prequeue_process(struct sock *sk)
 {
 	struct sk_buff *skb;
@@ -1268,9 +1270,10 @@ static void tcp_prequeue_process(struct sock *sk)
 
 	/* RX process wants to run with disabled BHs, though it is not
 	 * necessary */
+	 /* 这个地方关闭BH */
 	local_bh_disable();
 	while ((skb = __skb_dequeue(&tp->ucopy.prequeue)) != NULL)
-		sk_backlog_rcv(sk, skb);
+		sk_backlog_rcv(sk, skb);  /* 将报文加入到backlog队列  */
 	local_bh_enable();
 
 	/* Clear memory counter. */
@@ -1582,7 +1585,10 @@ int tcp_recvmsg(struct kiocb *iocb, struct sock *sk, struct msghdr *msg,
 			 * is not empty. It is more elegant, but eats cycles,
 			 * unfortunately.
 			 */
-			 /* prequeue不为空，先处理prequeue队列 为什么要先处理prequeue队列呢  */
+			 /* 
+			 prequeue不为空，先处理prequeue队列 为什么要先处理prequeue队列呢 
+			 
+			 */
 			if (!skb_queue_empty(&tp->ucopy.prequeue))
 				goto do_prequeue;
 
@@ -1599,7 +1605,7 @@ int tcp_recvmsg(struct kiocb *iocb, struct sock *sk, struct msghdr *msg,
 #ifdef CONFIG_NET_DMA
 		tp->ucopy.wakeup = 0;
 #endif
-
+		/* 有进程在接收 */
 		if (user_recv) {
 			int chunk;
 
@@ -1610,7 +1616,7 @@ int tcp_recvmsg(struct kiocb *iocb, struct sock *sk, struct msghdr *msg,
 				len -= chunk;
 				copied += chunk;
 			}
-
+			/* 注意这点: tcp按序接收 */
 			if (tp->rcv_nxt == tp->copied_seq &&
 			    !skb_queue_empty(&tp->ucopy.prequeue)) {
 do_prequeue:
@@ -1896,6 +1902,7 @@ void tcp_close(struct sock *sk, long timeout)
 	sk->sk_shutdown = SHUTDOWN_MASK;
 
 	if (sk->sk_state == TCP_LISTEN) {
+		/* 侦听socket关闭处理 */
 		tcp_set_state(sk, TCP_CLOSE);
 
 		/* Special case. */
@@ -1908,6 +1915,7 @@ void tcp_close(struct sock *sk, long timeout)
 	 *  descriptor close, not protocol-sourced closes, because the
 	 *  reader process may not have drained the data yet!
 	 */
+	 /* 清空sk_receive_queue队列，检查是否有未读数据   */
 	while ((skb = __skb_dequeue(&sk->sk_receive_queue)) != NULL) {
 		u32 len = TCP_SKB_CB(skb)->end_seq - TCP_SKB_CB(skb)->seq -
 			  tcp_hdr(skb)->fin;
@@ -1925,6 +1933,7 @@ void tcp_close(struct sock *sk, long timeout)
 	 * Note: timeout is always zero in such a case.
 	 */
 	if (data_was_unread) {
+		/* 有未读数据 */
 		/* Unread data was tossed, zap the connection. */
 		NET_INC_STATS_USER(sock_net(sk), LINUX_MIB_TCPABORTONCLOSE);
 		tcp_set_state(sk, TCP_CLOSE);

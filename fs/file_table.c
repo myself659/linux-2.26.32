@@ -98,6 +98,10 @@ int proc_nr_files(ctl_table *table, int write,
  * done, you will imbalance int the mount's writer count
  * and a warning at __fput() time.
  */
+
+ /*
+
+ */
 struct file *get_empty_filp(void)
 {
 	const struct cred *cred = current_cred();
@@ -129,6 +133,7 @@ struct file *get_empty_filp(void)
 	atomic_long_set(&f->f_count, 1);
 	rwlock_init(&f->f_owner.lock);
 	spin_lock_init(&f->f_lock);
+	/* 只要是fd都可以加入epoll */
 	eventpoll_init_file(f);
 	/* f->f_version: 0 */
 	return f;
@@ -221,6 +226,7 @@ int init_file(struct file *file, struct vfsmount *mnt, struct dentry *dentry,
 }
 EXPORT_SYMBOL(init_file);
 
+/* 引用计数减1 */
 void fput(struct file *file)
 {
 	if (atomic_long_dec_and_test(&file->f_count))
@@ -270,6 +276,9 @@ void __fput(struct file *file)
 	 * The function eventpoll_release() should be the first called
 	 * in the file cleanup chain.
 	 */
+	 /*
+	close 会主动解除关联epoll了
+	 */
 	eventpoll_release(file);
 	locks_remove_flock(file);
 
@@ -278,6 +287,7 @@ void __fput(struct file *file)
 			file->f_op->fasync(-1, file, 0);
 	}
 	if (file->f_op && file->f_op->release)
+		/* 对于socket 类型fd对应为sock_close */
 		file->f_op->release(inode, file);
 	security_file_free(file);
 	ima_file_free(file);

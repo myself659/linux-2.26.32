@@ -4377,7 +4377,7 @@ queue_and_out:
 		if (eaten > 0)
 			__kfree_skb(skb);
 		else if (!sock_flag(sk, SOCK_DEAD))
-			sk->sk_data_ready(sk, 0);
+			sk->sk_data_ready(sk, 0);  /* sock_def_readable 唤醒对应进程  */
 		return;
 	}
 
@@ -5164,6 +5164,21 @@ discard:
  *	the rest is checked inline. Fast processing is turned on in
  *	tcp_data_queue when everything is OK.
  */
+
+ /*
+tcp处于ESTABLISHED状态 
+
+
+在以下情况下，关闭快速处理，具体如下:
+1. 接收窗口为0 
+2. 收到的是乱序报文 
+3. 收到紧急数据  
+4. 没有buffer空间 
+5. tcp报文头部检查 
+6. 存在收发双向操作
+7. 有tcp选项需要处理 
+
+ */
 int tcp_rcv_established(struct sock *sk, struct sk_buff *skb,
 			struct tcphdr *th, unsigned len)
 {
@@ -5355,10 +5370,13 @@ slow_path:
 step5:
 	if (th->ack && tcp_ack(sk, skb, FLAG_SLOWPATH) < 0)
 		goto discard;
-
+	/*
+	rtt测试
+	*/
 	tcp_rcv_rtt_measure_ts(sk, skb);
 
 	/* Process urgent data. */
+	/* tcp 紧急数据处理 */
 	tcp_urg(sk, skb, th);
 
 	/* step 7: process the segment text */

@@ -400,6 +400,7 @@ static int sock_attach_fd(struct socket *sock, struct file *file, int flags)
 int sock_map_fd(struct socket *sock, int flags)
 {
 	struct file *newfile;
+	/* socket 与 fd 关联 */
 	int fd = sock_alloc_fd(&newfile, flags);
 
 	if (likely(fd >= 0)) {
@@ -530,7 +531,7 @@ void sock_release(struct socket *sock)
 {
 	if (sock->ops) {
 		struct module *owner = sock->ops->owner;
-
+		/* 对于tcp，对应函数为inet_release */
 		sock->ops->release(sock);
 		sock->ops = NULL;
 		module_put(owner);
@@ -687,7 +688,7 @@ static inline int __sock_recvmsg(struct kiocb *iocb, struct socket *sock,
 	err = security_socket_recvmsg(sock, msg, size, flags);
 	if (err)
 		return err;
-
+	/* 以tcp为例，tcp_recvmsg */
 	return sock->ops->recvmsg(iocb, sock, msg, size, flags);
 }
 
@@ -1746,7 +1747,9 @@ SYSCALL_DEFINE4(send, int, fd, void __user *, buff, size_t, len,
  *	sender. We verify the buffers are writable and if needed move the
  *	sender address from kernel to user space.
  */
+/*
 
+*/
 SYSCALL_DEFINE6(recvfrom, int, fd, void __user *, ubuf, size_t, size,
 		unsigned, flags, struct sockaddr __user *, addr,
 		int __user *, addr_len)
@@ -1774,6 +1777,7 @@ SYSCALL_DEFINE6(recvfrom, int, fd, void __user *, ubuf, size_t, size,
 	msg.msg_name = addr ? (struct sockaddr *)&address : NULL;
 	/* We assume all kernel code knows the size of sockaddr_storage */
 	msg.msg_namelen = 0;
+	/* 如果socket 对应io设置为非阻塞  */
 	if (sock->file->f_flags & O_NONBLOCK)
 		flags |= MSG_DONTWAIT;
 	err = sock_recvmsg(sock, &msg, size, flags);
@@ -1793,7 +1797,7 @@ out:
 /*
  *	Receive a datagram from a socket.
  */
-
+/* recv系统调用入口 */
 asmlinkage long sys_recv(int fd, void __user *ubuf, size_t size,
 			 unsigned flags)
 {

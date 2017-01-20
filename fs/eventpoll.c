@@ -725,6 +725,7 @@ static int ep_read_events_proc(struct eventpoll *ep, struct list_head *head,
 	struct epitem *epi, *tmp;
 
 	list_for_each_entry_safe(epi, tmp, head, rdllink) {
+		/*  poll事件  */
 		if (epi->ffd.file->f_op->poll(epi->ffd.file, NULL) &
 		    epi->event.events)
 			return POLLIN | POLLRDNORM;
@@ -769,7 +770,7 @@ static unsigned int ep_eventpoll_poll(struct file *file, poll_table *wait)
 /* File callbacks that implement the eventpoll file behaviour */
 static const struct file_operations eventpoll_fops = {
 	.release	= ep_eventpoll_release,
-	.poll		= ep_eventpoll_poll
+	.poll		= ep_eventpoll_poll /* 将epoll 对应fd加入epoll 侦听 */
 };
 
 /*
@@ -1351,6 +1352,7 @@ static int ep_send_events_proc(struct eventpoll *ep, struct list_head *head,
 			}
 			/* 收集事件计数加1 */
 			eventcnt++;
+			/* 向后移动 */
 			uevent++;
 				/* 如果是ONESHOT,清除其他事件，设置为EPOLLONESHOT */
 			if (epi->event.events & EPOLLONESHOT)
@@ -1367,7 +1369,7 @@ static int ep_send_events_proc(struct eventpoll *ep, struct list_head *head,
 				 * ep_scan_ready_list() holding "mtx" and the
 				 * poll callback will queue them in ep->ovflist.
 				 */
-		    /* 边沿触发 将事件加入到rdllist 只报一次 */
+		    /* 边沿触发 将事件加入到rdllist 只报一次，从epi中摘除了该事件  */
 				list_add_tail(&epi->rdllink, &ep->rdllist);
 			}
 		}
