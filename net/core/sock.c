@@ -860,7 +860,7 @@ int sock_getsockopt(struct socket *sock, int level, int optname,
 		break;
 
 	case SO_SNDLOWAT:
-		v.val = 1;
+		v.val = 1; /* 默认值为1 */
 		break;
 
 	case SO_PASSCRED:
@@ -1500,7 +1500,7 @@ static void __lock_sock(struct sock *sk)
 static void __release_sock(struct sock *sk)
 {
 	struct sk_buff *skb = sk->sk_backlog.head;
-
+	/* 遍历backlog队列 */
 	do {
 		sk->sk_backlog.head = sk->sk_backlog.tail = NULL;
 		bh_unlock_sock(sk);
@@ -1509,6 +1509,7 @@ static void __release_sock(struct sock *sk)
 			struct sk_buff *next = skb->next;
 
 			skb->next = NULL;
+			/* 处理报文，其实就是tcp_v4_do_rcv方法 */
 			sk_backlog_rcv(sk, skb);
 
 			/*
@@ -1543,6 +1544,7 @@ int sk_wait_data(struct sock *sk, long *timeo)
 
 	prepare_to_wait(sk->sk_sleep, &wait, TASK_INTERRUPTIBLE);
 	set_bit(SOCK_ASYNC_WAITDATA, &sk->sk_socket->flags);
+	/* 它的自动唤醒条件有两个，要么timeo时间到达，要么receive队列不为空 */
 	rc = sk_wait_event(sk, timeo, !skb_queue_empty(&sk->sk_receive_queue));
 	clear_bit(SOCK_ASYNC_WAITDATA, &sk->sk_socket->flags);
 	finish_wait(sk->sk_sleep, &wait);
@@ -1782,6 +1784,11 @@ static void sock_def_error_report(struct sock *sk)
 	read_unlock(&sk->sk_callback_lock);
 }
 
+/* 
+唤醒进程
+
+如果是epoll，报epoll 事件 
+*/
 static void sock_def_readable(struct sock *sk, int len)
 {
 	read_lock(&sk->sk_callback_lock);
@@ -1793,7 +1800,12 @@ static void sock_def_readable(struct sock *sk, int len)
 }
 
 /*
-引用写空间 		
+引用写空间 
+
+如果有报文发送
+例如epoll通知有事件写事件
+
+epoll只需要针对fd，不需要关心fd对应是tcp，udp 
 */
 static void sock_def_write_space(struct sock *sk)
 {
@@ -1930,6 +1942,7 @@ void release_sock(struct sock *sk)
 	mutex_release(&sk->sk_lock.dep_map, 1, _RET_IP_);
 
 	spin_lock_bh(&sk->sk_lock.slock);
+	/* 遍历backlog队列中的每一个报文 */
 	if (sk->sk_backlog.tail)
 		__release_sock(sk);
 	sk->sk_lock.owned = 0;
